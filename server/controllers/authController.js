@@ -6,9 +6,25 @@ exports.register = async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: "Email already used" });
+    if (password.length < 8) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters"
+      });
+    }
+
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) {
+      return res.status(400).json({
+        message: "Email already used"
+      });
+    }
+
+    const existingUsername = await User.findOne({ username });
+
+    if (existingUsername) {
+      return res.status(400).json({
+        message: "Username already used"
+      });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);

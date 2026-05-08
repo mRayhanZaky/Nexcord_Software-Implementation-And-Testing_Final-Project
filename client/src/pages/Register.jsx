@@ -11,11 +11,16 @@ export default function Register() {
 const handleSubmit = async (e) => {
   e.preventDefault();
 
-  console.log(form); // 👈 tambahin ini
+  if (form.password.length < 8) {
+    alert("Password must be at least 8 characters");
+    return;
+  }
+
+  console.log(form);
 
   const res = await registerUser(form);
 
-  console.log(res); // 👈 tambahin ini
+  console.log(res);
 
   alert(res.message);
 };

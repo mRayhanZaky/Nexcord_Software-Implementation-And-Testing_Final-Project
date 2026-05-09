@@ -3,107 +3,27 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  Bot,
-  ChevronLeft,
-  ChevronRight,
-  LockKeyhole,
-  MessageCircle,
-  Mic2,
-  Radio,
-  ShieldCheck,
-  Sparkles,
-  UsersRound,
-  Video,
-  Zap,
-} from "lucide-react";
-import { BrandMark, NebulaShell, Reveal } from "./motion-shell";
+import { ArrowRight, LogIn, Sparkles, UserPlus, UsersRound } from "lucide-react";
 
 const heroSlides = [
   {
-    image:
-      "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1800&q=85",
-    eyebrow: "Realtime social command center",
-    title: "Connect beyond messaging.",
-    subtitle:
-      "NEXCORD turns rooms, friends, squads, and communities into one cinematic place for live conversation.",
-    room: "nexus-lounge",
-    stat: "24 online",
-    accent: "from-cyan-300 via-blue-500 to-violet-500",
-    messages: [
-      ["Alya", "The whole squad is online."],
-      ["Kai", "Drop into voice when ready."],
-      ["Nova", "Realtime sync feels instant."],
-    ],
+    image: "https://images.unsplash.com/photo-1519074002996-a69e7ac46a42?auto=format&fit=crop&w=2200&q=88",
+    kicker: "Featured Festivals",
+    title: "Find the Best Live Events Near You",
+    subtitle: "Tickets, schedules, and premium experiences — all in one elegant event hub.",
   },
   {
-    image:
-      "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1800&q=85",
-    eyebrow: "Communities with presence",
-    title: "Build rooms that feel alive.",
-    subtitle:
-      "Create focused spaces for gaming, study circles, teams, creators, and private communities with live presence baked in.",
-    room: "arena-voice",
-    stat: "Voice active",
-    accent: "from-fuchsia-300 via-violet-500 to-cyan-400",
-    messages: [
-      ["Mira", "New room is ready."],
-      ["Den", "Voice channel opened."],
-      ["System", "7 members joined Arena."],
-    ],
+    image: "https://images.unsplash.com/photo-1497032628192-86f99bcd76bc?auto=format&fit=crop&w=2200&q=88",
+    kicker: "Designed for discovery",
+    title: "Explore Concerts, Sports, and Culture",
+    subtitle: "From local meetups to headline shows, discover every event with a modern booking experience.",
   },
   {
-    image:
-      "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1800&q=85",
-    eyebrow: "Secure, expressive, AI-ready",
-    title: "The future of chat starts here.",
-    subtitle:
-      "Supabase auth, storage, realtime messaging, and an AI-ready data model give NEXCORD room to grow.",
-    room: "future-lab",
-    stat: "AI-ready",
-    accent: "from-pink-300 via-purple-500 to-sky-400",
-    messages: [
-      ["Nex AI", "Summaries can come next."],
-      ["Rin", "Media sharing pipeline is ready."],
-      ["You", "Ship the beautiful version."],
-    ],
+    image: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2200&q=88",
+    kicker: "Secure your spot",
+    title: "Create Your Account and Join the Moment",
+    subtitle: "Sign up now to book tickets faster, save favorites, and never miss another live experience.",
   },
-];
-
-const featureGroups = [
-  {
-    title: "Conversation",
-    text: "Fast room-based messaging, reactions, replies, and presence designed for active communities.",
-    items: [
-      ["Realtime Messaging", MessageCircle],
-      ["Presence Status", Radio],
-      ["Reactions & Emojis", Sparkles],
-    ],
-  },
-  {
-    title: "Community",
-    text: "Organize people into social spaces that feel premium on desktop, tablet, and mobile.",
-    items: [
-      ["Groups & Rooms", UsersRound],
-      ["Voice Channels", Mic2],
-      ["Video Ready", Video],
-    ],
-  },
-  {
-    title: "Intelligence",
-    text: "A Supabase foundation ready for secure auth, storage, AI memory, and semantic features.",
-    items: [
-      ["AI Features", Bot],
-      ["Secure Auth", ShieldCheck],
-      ["Protected Data", LockKeyhole],
-    ],
-  },
-];
-
-const stats = [
-  ["Realtime", "Supabase-powered messaging pipeline"],
-  ["Secure", "Auth, RLS, and protected server routes"],
-  ["AI-ready", "Schema prepared for future memory and search"],
 ];
 
 export default function LandingPage() {
@@ -111,348 +31,170 @@ export default function LandingPage() {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentSlide((current) => (current + 1) % heroSlides.length);
+      setCurrentSlide((previous) => (previous + 1) % heroSlides.length);
     }, 7000);
 
     return () => clearInterval(timer);
   }, []);
 
-  const activeSlide = heroSlides[currentSlide];
-
-  function goToSlide(index) {
-    setCurrentSlide((index + heroSlides.length) % heroSlides.length);
-  }
+  const slide = heroSlides[currentSlide];
 
   return (
-    <NebulaShell>
-      <header className="fixed left-0 right-0 top-0 z-30 px-4 py-4">
-        <nav className="mx-auto flex max-w-6xl items-center justify-between rounded-2xl border border-white/10 bg-[#070a12]/80 px-4 py-3 shadow-2xl shadow-black/30 backdrop-blur-2xl">
-          <Link href="/" aria-label="NEXCORD home">
-            <BrandMark />
+    <main className="relative min-h-screen overflow-hidden bg-[#050712] text-white">
+      <AnimatePresence mode="sync">
+        <motion.div
+          key={currentSlide}
+          className="absolute inset-0"
+          initial={{ opacity: 0, scale: 1 }}
+          animate={{ opacity: 1, scale: 1.1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 5.4, ease: [0.2, 0.8, 0.2, 1] }}
+          style={{
+            backgroundImage: `url(${slide.image})`,
+            backgroundPosition: "center",
+            backgroundSize: "cover",
+          }}
+        />
+      </AnimatePresence>
+
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(5,7,18,0.94)_0%,rgba(20,13,56,0.76)_42%,rgba(5,7,18,0.34)_100%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(5,7,18,0.24)_0%,rgba(43,19,91,0.38)_54%,rgba(5,7,18,0.96)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.28),transparent_24rem),radial-gradient(circle_at_88%_16%,rgba(244,114,182,0.26),transparent_28rem)]" />
+
+      <header className="absolute left-0 right-0 top-0 z-20">
+        <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6 md:px-10">
+          <Link className="flex items-center gap-4" href="/" aria-label="Event hub home">
+            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-orange-400 via-fuchsia-500 to-violet-700 text-xl font-black shadow-[0_0_32px_rgba(251,146,60,0.42)] md:h-12 md:w-12">
+              E
+            </span>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-100/80">Live Events</p>
+              <span className="block text-2xl font-black tracking-tight md:text-4xl">NEXCORD</span>
+            </div>
           </Link>
-          <div className="hidden items-center gap-7 text-sm font-medium text-slate-300 md:flex">
-            <a className="transition hover:text-white" href="#experience">Experience</a>
-            <a className="transition hover:text-white" href="#features">Features</a>
-            <a className="transition hover:text-white" href="#trust">Trust</a>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link className="ghost-button min-h-10 px-4" href="/login">Login</Link>
-            <Link className="neon-button min-h-10 px-4" href="/signup">Get Started</Link>
+
+          <div className="flex items-center gap-3">
+            <Link className="rounded-full border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-bold text-white backdrop-blur-xl transition hover:bg-white/18 md:px-6 md:py-3 md:text-base" href="/login">
+              Login
+            </Link>
+            <Link className="rounded-full bg-white px-4 py-2.5 text-sm font-black text-[#271047] shadow-2xl shadow-fuchsia-950/40 transition hover:scale-[1.03] md:px-6 md:py-3 md:text-base" href="/signup">
+              Get Started
+            </Link>
           </div>
         </nav>
       </header>
 
-      <main>
-        <section className="relative min-h-[92vh] overflow-hidden">
-          <AnimatePresence mode="sync">
-            <motion.div
-              key={currentSlide}
-              className="absolute inset-0"
-              initial={{ opacity: 0, scale: 1 }}
-              animate={{ opacity: 1, scale: 1.1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 5, ease: [0.2, 0.8, 0.2, 1] }}
-              style={{
-                backgroundImage: `url(${activeSlide.image})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            />
-          </AnimatePresence>
-
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_28%,rgba(34,211,238,0.26),transparent_28rem),linear-gradient(90deg,rgba(3,7,18,0.94)_0%,rgba(3,7,18,0.78)_42%,rgba(3,7,18,0.34)_100%)]" />
-          <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-[#070a12] to-transparent" />
-
-          <div className="relative z-10 mx-auto grid min-h-[92vh] max-w-6xl items-center gap-10 px-5 pb-16 pt-32 lg:grid-cols-[0.92fr_1.08fr]">
-            <div className="max-w-3xl">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={`copy-${currentSlide}`}
-                  initial={{ y: 46, opacity: 0, filter: "blur(14px)" }}
-                  animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
-                  exit={{ y: -40, opacity: 0, filter: "blur(14px)" }}
-                  transition={{ duration: 0.82, ease: [0.2, 0.8, 0.2, 1] }}
-                >
-                  <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-sm font-bold text-cyan-100 backdrop-blur-xl">
-                    <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_18px_rgba(52,211,153,0.8)]" />
-                    {activeSlide.eyebrow}
-                  </div>
-                  <h1 className="text-5xl font-black uppercase leading-[0.9] tracking-tight text-white drop-shadow-2xl md:text-7xl">
-                    {activeSlide.title}
-                  </h1>
-                  <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-200 drop-shadow-lg">
-                    {activeSlide.subtitle}
-                  </p>
-                </motion.div>
-              </AnimatePresence>
-
+      <section className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl items-center px-5 pb-28 pt-28 md:px-10">
+        <div className="grid w-full items-center gap-12 lg:grid-cols-[minmax(0,1fr)_370px]">
+          <div className="max-w-5xl">
+            <AnimatePresence mode="wait">
               <motion.div
-                className="mt-8 flex flex-wrap gap-3"
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: 0.2 }}
+                key={`text-${currentSlide}`}
+                initial={{ y: 54, opacity: 0, filter: "blur(15px)" }}
+                animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
+                exit={{ y: -54, opacity: 0, filter: "blur(15px)" }}
+                transition={{ duration: 1.15, ease: [0.2, 0.8, 0.2, 1] }}
               >
-                <Link className="neon-button" href="/signup">
-                  Create Account <Zap size={18} />
-                </Link>
-                <Link className="ghost-button" href="/login">
-                  Login
-                </Link>
+                <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-cyan-200/25 bg-cyan-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-cyan-100 shadow-2xl shadow-cyan-950/30 backdrop-blur-xl md:text-sm">
+                  <Sparkles size={16} />
+                  {slide.kicker}
+                </div>
+                <h1 className="max-w-5xl text-left text-5xl font-black uppercase leading-[0.9] text-white drop-shadow-[0_10px_38px_rgba(0,0,0,0.64)] sm:text-6xl md:text-7xl lg:text-8xl">
+                  {slide.title}
+                </h1>
+                <motion.p
+                  className="mt-7 max-w-3xl text-left text-lg leading-8 text-white/88 drop-shadow-[0_4px_18px_rgba(0,0,0,0.55)] md:text-2xl md:leading-9"
+                  initial={{ y: 34, opacity: 0, filter: "blur(8px)" }}
+                  animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
+                  exit={{ y: -34, opacity: 0, filter: "blur(8px)" }}
+                  transition={{ duration: 1.15, delay: 0.12, ease: [0.2, 0.8, 0.2, 1] }}
+                >
+                  {slide.subtitle}
+                </motion.p>
               </motion.div>
+            </AnimatePresence>
 
-              <div className="mt-10 flex items-center gap-3">
-                <button
-                  className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-white/10 text-white backdrop-blur-xl transition hover:bg-white/15"
-                  type="button"
-                  onClick={() => goToSlide(currentSlide - 1)}
-                  title="Previous slide"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-                <div className="flex gap-2">
-                  {heroSlides.map((slide, index) => (
-                    <button
-                      key={slide.title}
-                      className={`h-2.5 rounded-full transition-all ${index === currentSlide ? "w-10 bg-cyan-200" : "w-2.5 bg-white/35 hover:bg-white/60"}`}
-                      type="button"
-                      onClick={() => goToSlide(index)}
-                      aria-label={`Go to slide ${index + 1}`}
-                    />
-                  ))}
-                </div>
-                <button
-                  className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-white/10 text-white backdrop-blur-xl transition hover:bg-white/15"
-                  type="button"
-                  onClick={() => goToSlide(currentSlide + 1)}
-                  title="Next slide"
-                >
-                  <ChevronRight size={20} />
-                </button>
+            <motion.div
+              className="mt-10 flex flex-col gap-3 sm:flex-row"
+              initial={{ y: 34, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.45, duration: 0.8, ease: [0.2, 0.8, 0.2, 1] }}
+            >
+              <Link className="inline-flex min-h-14 items-center justify-center gap-3 rounded-full bg-white px-7 text-base font-black text-[#1c0c37] shadow-[0_22px_70px_rgba(139,92,246,0.42)] transition hover:-translate-y-1 hover:shadow-[0_28px_80px_rgba(34,211,238,0.3)]" href="/signup">
+                <UserPlus size={20} />
+                Create Account
+                <ArrowRight size={19} />
+              </Link>
+              <Link className="inline-flex min-h-14 items-center justify-center gap-3 rounded-full border border-white/25 bg-white/10 px-7 text-base font-bold text-white backdrop-blur-xl transition hover:-translate-y-1 hover:bg-white/18" href="/login">
+                <LogIn size={20} />
+                Login
+              </Link>
+            </motion.div>
+          </div>
+
+          <motion.aside
+            className="hidden rounded-[2rem] border border-white/15 bg-white/[0.08] p-6 shadow-[0_30px_100px_rgba(0,0,0,0.36)] backdrop-blur-2xl lg:block"
+            initial={{ opacity: 0, x: 36 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.35, duration: 0.9, ease: [0.2, 0.8, 0.2, 1] }}
+          >
+            <div className="flex items-center gap-4">
+              <div className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-orange-300 to-fuchsia-500 text-white shadow-[0_0_32px_rgba(249,115,22,0.28)]">
+                <Sparkles size={28} />
               </div>
-            </div>
-
-            <HeroProductPreview slide={activeSlide} slideIndex={currentSlide} />
-          </div>
-        </section>
-
-        <section id="experience" className="mx-auto max-w-6xl px-5 py-12 md:py-20">
-          <Reveal>
-            <div className="grid gap-5 md:grid-cols-3">
-              {stats.map(([title, text]) => (
-                <div key={title} className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-                  <div className="text-sm font-bold uppercase tracking-[0.22em] text-cyan-200">{title}</div>
-                  <p className="mb-0 mt-3 leading-7 text-slate-300">{text}</p>
-                </div>
-              ))}
-            </div>
-          </Reveal>
-        </section>
-
-        <section className="mx-auto grid max-w-6xl gap-10 px-5 py-16 lg:grid-cols-[0.78fr_1.22fr]">
-          <Reveal className="self-center">
-            <p className="text-sm font-bold uppercase tracking-[0.24em] text-pink-200">Product preview</p>
-            <h2 className="mt-4 text-4xl font-black leading-tight md:text-6xl">A focused interface for fast social flow.</h2>
-            <p className="mt-5 max-w-lg text-lg leading-8 text-slate-300">
-              The app experience is organized around rooms, active members, expressive messages, and a composer that stays out of the way.
-            </p>
-          </Reveal>
-          <Reveal delay={0.08}>
-            <DashboardPreview />
-          </Reveal>
-        </section>
-
-        <section id="features" className="mx-auto max-w-6xl px-5 py-16">
-          <Reveal>
-            <div className="mx-auto mb-10 max-w-3xl text-center">
-              <p className="text-sm font-bold uppercase tracking-[0.24em] text-cyan-200">Feature system</p>
-              <h2 className="mt-4 text-4xl font-black leading-tight md:text-6xl">Everything has a clear role.</h2>
-              <p className="mt-5 text-lg leading-8 text-slate-300">
-                Instead of scattered feature cards, NEXCORD groups the experience into conversation, community, and intelligence.
-              </p>
-            </div>
-          </Reveal>
-
-          <div className="grid gap-5 lg:grid-cols-3">
-            {featureGroups.map((group, index) => (
-              <Reveal key={group.title} delay={index * 0.08}>
-                <motion.article className="glass-panel h-full p-6" whileHover={{ y: -6 }}>
-                  <h3 className="text-2xl font-black">{group.title}</h3>
-                  <p className="mt-3 min-h-20 leading-7 text-slate-400">{group.text}</p>
-                  <div className="mt-6 grid gap-3">
-                    {group.items.map(([label, Icon]) => (
-                      <div key={label} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                        <span className="grid h-10 w-10 place-items-center rounded-xl bg-cyan-300/10 text-cyan-200">
-                          <Icon size={18} />
-                        </span>
-                        <span className="font-bold text-slate-200">{label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </motion.article>
-              </Reveal>
-            ))}
-          </div>
-        </section>
-
-        <section id="trust" className="mx-auto max-w-6xl px-5 py-16">
-          <Reveal>
-            <div className="glass-panel grid gap-8 p-6 md:grid-cols-[0.9fr_1.1fr] md:p-8">
               <div>
-                <p className="text-sm font-bold uppercase tracking-[0.24em] text-pink-200">Social proof</p>
-                <h2 className="mt-4 text-4xl font-black leading-tight">Designed to feel reliable, not noisy.</h2>
-                <p className="mt-5 leading-8 text-slate-300">
-                  Strong layout, controlled motion, and Supabase-backed architecture make the experience feel premium without losing clarity.
-                </p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                {[
-                  ["12K+", "messages modeled"],
-                  ["98ms", "sync target"],
-                  ["RLS", "policy ready"],
-                ].map(([value, label]) => (
-                  <div key={label} className="rounded-3xl border border-white/10 bg-slate-950/35 p-5 text-center">
-                    <div className="text-3xl font-black text-white">{value}</div>
-                    <div className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">{label}</div>
-                  </div>
-                ))}
+                <p className="m-0 text-sm font-bold uppercase tracking-[0.18em] text-orange-100/80">Live Experiences</p>
+                <h2 className="m-0 text-2xl font-black">Your next event starts here</h2>
               </div>
             </div>
-          </Reveal>
-        </section>
-
-        <section className="mx-auto max-w-6xl px-5 py-16">
-          <Reveal>
-            <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-slate-950/70 p-8 text-center shadow-2xl shadow-black/40 backdrop-blur-2xl md:p-14">
-              <p className="text-sm font-bold uppercase tracking-[0.24em] text-cyan-200">Join NEXCORD</p>
-              <h2 className="mx-auto mt-4 max-w-3xl text-4xl font-black leading-tight md:text-6xl">
-                Create your space and start the next conversation.
-              </h2>
-              <p className="mx-auto mt-5 max-w-2xl leading-8 text-slate-300">
-                Move from scattered messages into a designed social command center for people, communities, and real-time presence.
-              </p>
-              <div className="mt-8 flex flex-wrap justify-center gap-3">
-                <Link className="neon-button" href="/signup">Create Account</Link>
-                <Link className="ghost-button" href="/login">Login</Link>
-              </div>
-            </div>
-          </Reveal>
-        </section>
-      </main>
-
-      <footer className="mx-auto flex max-w-6xl flex-col gap-4 border-t border-white/10 px-5 py-8 text-sm text-slate-400 md:flex-row md:items-center md:justify-between">
-        <BrandMark />
-        <div className="flex gap-5">
-          <a href="#experience">Experience</a>
-          <a href="#features">Features</a>
-          <a href="#trust">Trust</a>
-        </div>
-        <span>Copyright 2026 NEXCORD</span>
-      </footer>
-    </NebulaShell>
-  );
-}
-
-function HeroProductPreview({ slide, slideIndex }) {
-  return (
-    <motion.div
-      className="relative"
-      initial={{ opacity: 0, y: 28, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.8, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
-    >
-      <div className="pointer-events-none absolute -inset-6 rounded-[40px] bg-cyan-400/10 blur-3xl" />
-      <div className="glass-panel relative mx-auto max-w-2xl overflow-hidden p-3">
-        <div className="rounded-[22px] border border-white/10 bg-[#080d1a]/88 shadow-2xl shadow-black/40">
-          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-            <div>
-              <div className="text-sm font-black">NEXCORD Live</div>
-              <div className="text-xs text-slate-500"># {slide.room}</div>
-            </div>
-            <div className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-bold text-emerald-200">{slide.stat}</div>
-          </div>
-          <div className="grid min-h-[390px] grid-cols-[132px_minmax(0,1fr)]">
-            <div className="border-r border-white/10 p-3">
-              {["nexus", "squad", "voice"].map((room, index) => (
-                <div key={room} className={`mb-2 rounded-2xl px-3 py-3 text-sm ${index === 0 ? "bg-cyan-300/15 text-cyan-100" : "text-slate-500"}`}>
-                  # {room}
+            <div className="mt-7 grid gap-3">
+              {["Instant ticket booking", "Curated event collections", "Secure checkout"].map((feature, index) => (
+                <div key={feature} className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3 shadow-[0_12px_30px_rgba(0,0,0,0.16)] backdrop-blur-xl">
+                  <span className="font-semibold text-white/90">{feature}</span>
+                  <span className="h-2.5 w-2.5 rounded-full bg-orange-300 shadow-[0_0_18px_rgba(251,146,60,0.75)]" style={{ opacity: 1 - index * 0.2 }} />
                 </div>
               ))}
             </div>
-            <div className="flex flex-col justify-between p-4">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={`preview-${slideIndex}`}
-                  className="space-y-3"
-                  initial={{ opacity: 0, y: 18 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -18 }}
-                  transition={{ duration: 0.45 }}
-                >
-                  {slide.messages.map(([name, text], index) => (
-                    <ChatBubble key={`${name}-${text}`} name={name} text={text} align={index === 1 ? "right" : undefined} />
-                  ))}
-                </motion.div>
-              </AnimatePresence>
-              <div className="mt-5 flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-400">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-300" />
-                Presence synced across the room
-              </div>
+          </motion.aside>
+        </div>
+      </section>
+
+      <div className="absolute bottom-0 left-0 right-0 z-20 border-t border-white/12 bg-[#16092f]/82 px-5 py-5 shadow-[0_-28px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-5 md:flex-row">
+          <div className="flex items-center gap-4">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-orange-400 via-fuchsia-500 to-violet-700 text-xl font-black shadow-[0_0_30px_rgba(249,115,22,0.42)]">
+              E
+            </span>
+            <div>
+              <p className="m-0 text-2xl font-black leading-none md:text-3xl">NEXCORD</p>
+              <p className="m-0 mt-1 text-sm text-white/62">Live events made effortless.</p>
             </div>
           </div>
-          <div className={`h-1 bg-gradient-to-r ${slide.accent}`} />
+
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+            <Link className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/16 bg-white/10 px-6 font-bold text-white transition hover:bg-white/18" href="/login">
+              <LogIn size={18} />
+              Login
+            </Link>
+            <Link className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-7 font-black text-[#271047] transition hover:scale-[1.03]" href="/signup">
+              <UserPlus size={18} />
+              Create Account
+            </Link>
+          </div>
         </div>
       </div>
-    </motion.div>
-  );
-}
 
-function DashboardPreview() {
-  return (
-    <div className="glass-panel overflow-hidden p-3">
-      <div className="grid rounded-[24px] border border-white/10 bg-[#080d1a]/80 md:grid-cols-[180px_minmax(0,1fr)_160px]">
-        <aside className="border-b border-white/10 p-4 md:border-b-0 md:border-r">
-          <div className="mb-5 text-sm font-black">Rooms</div>
-          {["General", "Creators", "Voice Lounge", "Support"].map((item, index) => (
-            <div key={item} className={`mb-2 rounded-2xl px-3 py-2 text-sm ${index === 0 ? "bg-violet-400/15 text-violet-100" : "text-slate-500"}`}>
-              {item}
-            </div>
-          ))}
-        </aside>
-        <section className="p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <strong># general</strong>
-              <p className="m-0 text-xs text-slate-500">Realtime discussion</p>
-            </div>
-            <Radio className="text-emerald-300" size={18} />
-          </div>
-          <div className="space-y-3">
-            <ChatBubble name="Alya" text="Ship the beautiful version, but keep it readable." />
-            <ChatBubble name="Den" text="Agreed. Motion supports the story now." align="right" />
-            <ChatBubble name="System" text="New member joined the room." />
-          </div>
-        </section>
-        <aside className="border-t border-white/10 p-4 md:border-l md:border-t-0">
-          <div className="mb-4 text-sm font-black">Online</div>
-          {["Alya", "Den", "Nova"].map((name) => (
-            <div key={name} className="mb-3 flex items-center gap-2 text-sm text-slate-300">
-              <span className="h-8 w-8 rounded-full bg-gradient-to-br from-cyan-300 via-violet-400 to-pink-400" />
-              {name}
-            </div>
-          ))}
-        </aside>
+      <div className="absolute bottom-36 left-0 right-0 z-20 flex justify-center gap-3 md:bottom-32">
+        {heroSlides.map((item, index) => (
+          <button
+            key={item.title}
+            type="button"
+            className={`h-3 rounded-full transition-all ${index === currentSlide ? "w-14 bg-white" : "w-3 bg-white/35 hover:bg-white/70"}`}
+            aria-label={`Show slide ${index + 1}`}
+            onClick={() => setCurrentSlide(index)}
+          />
+        ))}
       </div>
-    </div>
-  );
-}
-
-function ChatBubble({ name, text, align }) {
-  return (
-    <div className={`flex ${align === "right" ? "justify-end" : "justify-start"}`}>
-      <div className="max-w-[82%] rounded-3xl border border-white/10 bg-white/[0.055] p-3">
-        <div className="mb-1 text-xs font-bold text-cyan-200">{name}</div>
-        <div className="text-sm leading-6 text-slate-200">{text}</div>
-      </div>
-    </div>
+    </main>
   );
 }

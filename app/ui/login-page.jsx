@@ -1,5 +1,7 @@
 "use client";
 
+import "./auth.css";
+
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -61,11 +63,13 @@ export default function LoginPage() {
             <h1 className="mt-10">Welcome back to the future</h1>
             <p>Reconnect to your rooms, live communities, and private conversations in a secure realtime space.</p>
             <motion.div className="glass-panel mt-8 max-w-md p-5" animate={{ y: [0, -14, 0] }} transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}>
-              <div className="flex items-center gap-3">
-                <Radio className="text-cyan-200" />
-                <div>
-                  <strong>Realtime signal active</strong>
-                  <p className="m-0 text-sm text-slate-400">Presence, messaging, and communities are ready.</p>
+              <div className="flex items-center gap-4">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-cyan-300/10 text-cyan-200">
+                  <Radio size={18} />
+                </span>
+                <div className="min-w-0">
+                  <strong className="block text-sm font-black text-white">Realtime Signal Active</strong>
+                  <p className="m-0 mt-1 text-sm leading-6 text-slate-400">Presence, messages, and communities are ready.</p>
                 </div>
               </div>
             </motion.div>
@@ -79,17 +83,17 @@ export default function LoginPage() {
             <form className="auth-form" onSubmit={submit}>
               <div className="field">
                 <label>Email</label>
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                  <input className="pl-10" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email@gmail.com" />
+                <div className="input-shell">
+                  <Mail className="input-icon" size={18} />
+                  <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email@gmail.com" />
                 </div>
               </div>
               <div className="field">
                 <label>Password</label>
-                <div className="relative">
-                  <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                  <input className="pl-10 pr-10" type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" />
-                  <button className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" type="button" onClick={() => setShowPassword((value) => !value)} title="Toggle password visibility">
+                <div className="input-shell">
+                  <LockKeyhole className="input-icon" size={18} />
+                  <input className="has-action" type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" />
+                  <button className="input-action" type="button" onClick={() => setShowPassword((value) => !value)} title="Toggle password visibility">
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
@@ -108,7 +112,7 @@ export default function LoginPage() {
               </button>
             </form>
             <p className="mt-5 text-center text-sm text-slate-400">
-              New to NEXCORD? <Link className="text-cyan-200" href="/signup">Create an account</Link>
+              New to NEXCORD? <Link className="font-bold text-cyan-300 transition hover:text-white" href="/signup">Create an account</Link>
             </p>
           </motion.div>
         </section>

@@ -1,5 +1,6 @@
 "use client";
 
+import "./auth.css";
 import "react-phone-number-input/style.css";
 
 import Link from "next/link";
@@ -7,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import { motion } from "framer-motion";
-import { AtSign, CheckCircle2, UserRound, XCircle } from "lucide-react";
+import { AtSign, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail, UserRound, XCircle } from "lucide-react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { isEmail, passwordError, passwordScore, secretQuestions, usernameError } from "@/lib/auth/validation";
 import { BrandMark, NebulaShell } from "./motion-shell";
@@ -121,16 +122,16 @@ export default function SignupPage() {
                 <Field label="Full Name" value={form.fullName} onChange={(value) => update("fullName", value)} placeholder="Full Name" icon={<UserRound size={18} />} />
                 <div className="field">
                   <label>Username</label>
-                  <div className="relative">
-                    <AtSign className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input className="pl-10 pr-10" value={form.username} onChange={(event) => update("username", event.target.value.replace(/\s/g, ""))} placeholder="Username" />
-                    {usernameState.available ? <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-300" size={18} /> : null}
-                    {usernameState.available === false ? <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 text-rose-300" size={18} /> : null}
+                  <div className="input-shell">
+                    <AtSign className="input-icon" size={18} />
+                    <input className="has-action" value={form.username} onChange={(event) => update("username", event.target.value.replace(/\s/g, ""))} placeholder="Username" />
+                    {usernameState.available ? <CheckCircle2 className="input-status text-emerald-300" size={18} /> : null}
+                    {usernameState.available === false ? <XCircle className="input-status text-rose-300" size={18} /> : null}
                   </div>
                   {usernameState.message ? <span className={usernameState.available ? "form-success" : "form-error"}>{usernameState.message}</span> : null}
                 </div>
               </div>
-              <Field label="Email" value={form.email} onChange={(value) => update("email", value)} placeholder="Email" />
+              <Field label="Email" value={form.email} onChange={(value) => update("email", value)} placeholder="Email" icon={<Mail size={18} />} />
               <div className="field">
                 <label>Phone Number</label>
                 <PhoneInput defaultCountry="ID" international countryCallingCodeEditable={false} value={form.phoneNumber} onChange={(value) => update("phoneNumber", value ?? "")} />
@@ -158,7 +159,7 @@ export default function SignupPage() {
               </button>
             </form>
             <p className="mt-5 text-center text-sm text-slate-400">
-              Already have an account? <Link className="text-cyan-200" href="/login">Login</Link>
+              Already have an account? <Link className="font-bold text-cyan-300 transition hover:text-white" href="/login">Login</Link>
             </p>
           </motion.div>
         </section>
@@ -171,19 +172,38 @@ function Field({ label, value, onChange, placeholder, icon }) {
   return (
     <div className="field">
       <label>{label}</label>
-      <div className="relative">
-        {icon ? <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">{icon}</span> : null}
-        <input className={icon ? "pl-10" : ""} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+      <div className={icon ? "input-shell" : ""}>
+        {icon ? <span className="input-icon">{icon}</span> : null}
+        <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
       </div>
     </div>
   );
 }
 
 function PasswordField({ label, value, onChange }) {
+  const [showPassword, setShowPassword] = useState(false);
+  
   return (
     <div className="field">
       <label>{label}</label>
-      <input type="password" value={value} onChange={(event) => onChange(event.target.value)} placeholder={label} />
+      <div className="input-shell">
+        <LockKeyhole className="input-icon" size={18} />
+        <input 
+          className="has-action"
+          type={showPassword ? "text" : "password"} 
+          value={value} 
+          onChange={(event) => onChange(event.target.value)} 
+          placeholder={label} 
+        />
+        <button 
+          className="input-action"
+          type="button"
+          onClick={() => setShowPassword(!showPassword)}
+          title="Toggle password visibility"
+        >
+          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      </div>
     </div>
   );
 }

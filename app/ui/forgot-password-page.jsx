@@ -111,11 +111,6 @@ export default function ForgotPasswordPage() {
       <div className="forgot-stars" />
 
       <section className="forgot-form-side">
-        <Link className="forgot-brand" href="/">
-          <Image src="/nexcord_logo.png" alt="Nexcord logo" width={48} height={48} priority />
-          <span>NEXCORD</span>
-        </Link>
-
         <div className="forgot-card">
           <div className="forgot-card-head">
             <div className="forgot-icon">

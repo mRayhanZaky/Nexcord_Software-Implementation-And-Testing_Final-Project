@@ -19,14 +19,17 @@ import {
   LogOut,
   Menu,
   MessageCircle,
+  Mic,
+  Pause,
   Paperclip,
+  Play,
   Plus,
   Search,
   Send,
   Settings,
   Shield,
   SmilePlus,
-  Star,
+  Square,
   Trash2,
   Upload,
   UserPlus,
@@ -39,6 +42,8 @@ const filters = ["All", "Unread", "Favorites", "Groups"];
 const emojiBank = ["😀", "😂", "😍", "🥳", "😎", "😭", "😡", "👍", "👎", "🙏", "🔥", "💜", "💙", "✨", "🚀", "✅", "🎉", "💯", "🤝", "👀", "😮", "😴", "🤔", "❤️"];
 const reactionBank = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 const maxUploadSize = 5 * 1024 * 1024;
+const emojiOptions = ["\u{1F600}", "\u{1F602}", "\u{1F60D}", "\u{1F973}", "\u{1F60E}", "\u{1F62D}", "\u{1F621}", "\u{1F44D}", "\u{1F44E}", "\u{1F64F}", "\u{1F525}", "\u{1F49C}", "\u{1F499}", "\u2728", "\u{1F680}", "\u2705", "\u{1F389}", "\u{1F4AF}", "\u{1F91D}", "\u{1F440}", "\u{1F62E}", "\u{1F634}", "\u{1F914}", "\u2764\uFE0F"];
+const reactionOptions = ["\u{1F44D}", "\u2764\uFE0F", "\u{1F602}", "\u{1F62E}", "\u{1F622}", "\u{1F64F}"];
 
 const navItems = [
   { id: "explore", label: "Explore", icon: Compass },
@@ -76,6 +81,12 @@ function formatBytes(value = 0) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatDuration(value = 0) {
+  const minutes = Math.floor(value / 60);
+  const seconds = String(value % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
 function Avatar({ profile, size = "md", className = "" }) {
   const sizeClass = size === "lg" ? "nex-avatar-lg" : "nex-avatar";
   const url = avatarUrl(profile);
@@ -85,6 +96,18 @@ function Avatar({ profile, size = "md", className = "" }) {
       {url ? <img src={url} alt="" /> : initials(displayName(profile))}
     </span>
   );
+}
+
+function GroupAvatar({ conversation }) {
+  if (conversation?.image_url) {
+    return (
+      <span className="nex-server-icon has-image">
+        <img src={conversation.image_url} alt="" />
+      </span>
+    );
+  }
+
+  return <span className="nex-server-icon bg-gradient-to-br from-purple-500 to-cyan-400">{initials(conversation?.title ?? conversation?.name ?? "Group")}</span>;
 }
 
 export default function ChatApp() {
@@ -112,6 +135,10 @@ export default function ChatApp() {
   const [reactionFor, setReactionFor] = useState("");
   const [attachmentFile, setAttachmentFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [voicePreview, setVoicePreview] = useState(null);
+  const [playingVoiceId, setPlayingVoiceId] = useState("");
   const [typingUsers, setTypingUsers] = useState([]);
   const [toast, setToast] = useState(null);
   const [groupOpen, setGroupOpen] = useState(false);
@@ -126,6 +153,10 @@ export default function ChatApp() {
   const messagesEndRef = useRef(null);
   const typingTimerRef = useRef(null);
   const typingChannelRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const recordingTimerRef = useRef(null);
+  const audioRefs = useRef({});
 
   const currentUserId = session?.user?.id;
 
@@ -177,15 +208,19 @@ export default function ChatApp() {
 
     let memberRows = [];
     let latestRows = [];
+    let unreadRows = [];
     if (conversationIds.length) {
-      const [membersResult, latestResult] = await Promise.all([
+      const [membersResult, latestResult, unreadResult] = await Promise.all([
         supabase.from("conversation_members").select("conversation_id, user_id, users(id, full_name, username, email, display_name, avatar_url, status)").in("conversation_id", conversationIds),
         supabase.from("messages").select("id, conversation_id, body, message_type, file_name, created_at, sender_id").in("conversation_id", conversationIds).order("created_at", { ascending: false }).limit(200),
+        supabase.from("messages").select("id, conversation_id").in("conversation_id", conversationIds).neq("sender_id", currentUserId).is("read_at", null).limit(1000),
       ]);
       if (membersResult.error) setNotice(membersResult.error.message);
       if (latestResult.error) setNotice(latestResult.error.message);
+      if (unreadResult.error) setNotice(unreadResult.error.message);
       memberRows = membersResult.data ?? [];
       latestRows = latestResult.data ?? [];
+      unreadRows = unreadResult.data ?? [];
     }
 
     const nextConversations = conversationRows
@@ -199,11 +234,14 @@ export default function ChatApp() {
           members,
           other,
           latest,
+          unreadCount: unreadRows.filter((message) => message.conversation_id === row.conversation_id).length,
+          sortAt: latest?.created_at ?? conversation?.updated_at ?? conversation?.created_at,
           title: conversation?.type === "group" ? conversation?.name : displayName(other),
           subtitle: conversation?.type === "group" ? `${members.length} members` : userHandle(other),
         };
       })
-      .filter((conversation) => conversation.id);
+      .filter((conversation) => conversation.id)
+      .sort((a, b) => new Date(b.sortAt ?? 0) - new Date(a.sortAt ?? 0));
 
     setProfile(nextProfile);
     setSettingsForm({
@@ -243,6 +281,8 @@ export default function ChatApp() {
       .on("postgres_changes", { event: "*", schema: "public", table: "friend_requests" }, loadData)
       .on("postgres_changes", { event: "*", schema: "public", table: "friendships" }, loadData)
       .on("postgres_changes", { event: "*", schema: "public", table: "conversation_members" }, loadData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, loadData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "message_receipts" }, loadData)
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${currentUserId}` }, loadData)
       .on("postgres_changes", { event: "*", schema: "public", table: "favorites", filter: `user_id=eq.${currentUserId}` }, loadData)
       .subscribe();
@@ -261,7 +301,7 @@ export default function ChatApp() {
     async function loadMessages() {
       const { data, error } = await supabase
         .from("messages")
-        .select("id, body, message_type, delivered_at, read_at, media_url, media_type, file_name, file_size, created_at, sender_id, conversation_id, sender:users!messages_sender_id_fkey(id, full_name, username, display_name, email, avatar_url, status), attachments(id, storage_path, file_name, mime_type, size_bytes), message_reactions(id, emoji, user_id, created_at, user:users!message_reactions_user_id_fkey(id, username, display_name, full_name, avatar_url)), message_receipts(message_id, user_id, delivered_at, read_at)")
+        .select("id, body, message_type, delivered_at, read_at, media_url, media_type, file_name, file_size, voice_url, voice_duration, created_at, sender_id, conversation_id, sender:users!messages_sender_id_fkey(id, full_name, username, display_name, email, avatar_url, status), attachments(id, storage_path, file_name, mime_type, size_bytes), message_reactions(id, emoji, user_id, created_at, user:users!message_reactions_user_id_fkey(id, username, display_name, full_name, avatar_url)), message_receipts(message_id, user_id, delivered_at, read_at)")
         .eq("conversation_id", activeConversationId)
         .order("created_at", { ascending: true })
         .limit(150);
@@ -276,7 +316,12 @@ export default function ChatApp() {
           const { data: signed } = await supabase.storage.from("chat-attachments").createSignedUrl(attachment.storage_path, 60 * 60);
           return { ...attachment, signedUrl: signed?.signedUrl ?? "" };
         }));
-        return { ...message, attachments };
+        let signedVoiceUrl = "";
+        if (message.voice_url) {
+          const { data: signedVoice } = await supabase.storage.from("voice-messages").createSignedUrl(message.voice_url, 60 * 60);
+          signedVoiceUrl = signedVoice?.signedUrl ?? "";
+        }
+        return { ...message, attachments, signedVoiceUrl };
       }));
 
       setMessages(messagesWithUrls);
@@ -321,12 +366,12 @@ export default function ChatApp() {
         const typing = Object.values(state)
           .flat()
           .filter((entry) => entry.user_id !== currentUserId && entry.typing)
-          .map((entry) => entry.name);
+          .map((entry) => entry.username || entry.name);
         setTypingUsers([...new Set(typing)]);
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          await channel.track({ user_id: currentUserId, name: displayName(profile), typing: false });
+          await channel.track({ user_id: currentUserId, name: displayName(profile), username: profile?.username || userHandle(profile), typing: false });
         }
       });
 
@@ -370,6 +415,8 @@ export default function ChatApp() {
     return map;
   }, [requests, currentUserId]);
 
+  const friendProfiles = users.filter((user) => friendIds.includes(user.id));
+
   const filteredUsers = users.filter((user) => {
     const query = search.toLowerCase();
     const matches = `${user.username ?? ""} ${user.full_name ?? ""} ${user.display_name ?? ""}`.toLowerCase().includes(query);
@@ -383,8 +430,8 @@ export default function ChatApp() {
     const matches = `${conversation.title ?? ""} ${conversation.subtitle ?? ""} ${conversation.latest?.body ?? ""}`.toLowerCase().includes(query);
     if (!matches) return false;
     if (activeFilter === "Groups") return conversation.type === "group";
-    if (activeFilter === "Favorites") return favorites.some((favorite) => favorite.conversation_id === conversation.id || favorite.target_user_id === conversation.other?.id);
-    if (activeFilter === "Unread") return false;
+    if (activeFilter === "Favorites") return conversation.type === "direct" && favorites.some((favorite) => favorite.target_user_id === conversation.other?.id);
+    if (activeFilter === "Unread") return conversation.unreadCount > 0;
     return true;
   });
 
@@ -445,19 +492,15 @@ export default function ChatApp() {
     loadData();
   }
 
-  async function toggleFavorite(conversation) {
-    const existing = favorites.find((favorite) => favorite.conversation_id === conversation.id || favorite.target_user_id === conversation.other?.id);
+  async function toggleFavoriteUser(user) {
+    const existing = favorites.find((favorite) => favorite.target_user_id === user.id);
     if (existing) {
-      const query = supabase.from("favorites").delete().eq("user_id", currentUserId);
-      if (existing.conversation_id) query.eq("conversation_id", existing.conversation_id);
-      if (existing.target_user_id) query.eq("target_user_id", existing.target_user_id);
-      const { error } = await query;
+      const { error } = await supabase.from("favorites").delete().eq("user_id", currentUserId).eq("target_user_id", user.id);
       if (error) setNotice(error.message);
     } else {
       const { error } = await supabase.from("favorites").insert({
         user_id: currentUserId,
-        conversation_id: conversation.id,
-        target_user_id: conversation.type === "direct" ? conversation.other?.id : null,
+        target_user_id: user.id,
       });
       if (error) setNotice(error.message);
     }
@@ -474,11 +517,12 @@ export default function ChatApp() {
   function handleDraftChange(value) {
     setDraft(value);
     if (!typingChannelRef.current || !currentUserId) return;
-    typingChannelRef.current.track({ user_id: currentUserId, name: displayName(profile), typing: true });
+    const typingName = profile?.username || userHandle(profile);
+    typingChannelRef.current.track({ user_id: currentUserId, name: displayName(profile), username: typingName, typing: value.trim().length > 0 });
     window.clearTimeout(typingTimerRef.current);
     typingTimerRef.current = window.setTimeout(() => {
-      typingChannelRef.current?.track({ user_id: currentUserId, name: displayName(profile), typing: false });
-    }, 1200);
+      typingChannelRef.current?.track({ user_id: currentUserId, name: displayName(profile), username: typingName, typing: false });
+    }, 2400);
   }
 
   async function sendMessage(event) {
@@ -494,7 +538,7 @@ export default function ChatApp() {
     setDraft("");
     setEmojiOpen(false);
     setUploadProgress(attachmentFile ? 18 : 0);
-    typingChannelRef.current?.track({ user_id: currentUserId, name: displayName(profile), typing: false });
+    typingChannelRef.current?.track({ user_id: currentUserId, name: displayName(profile), username: profile?.username || userHandle(profile), typing: false });
 
     let storagePath = "";
     let signedUrl = "";
@@ -582,6 +626,135 @@ export default function ChatApp() {
     setReactionFor("");
   }
 
+  async function startRecording() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      showToast("error", "Voice unavailable", "This browser does not support voice recording.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      audioChunksRef.current = [];
+      mediaRecorderRef.current = recorder;
+      setVoicePreview(null);
+      setRecordingSeconds(0);
+      setRecording(true);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        window.clearInterval(recordingTimerRef.current);
+      };
+
+      recorder.start();
+      recordingTimerRef.current = window.setInterval(() => setRecordingSeconds((value) => value + 1), 1000);
+    } catch (error) {
+      showToast("error", "Microphone blocked", error.message);
+    }
+  }
+
+  function cancelRecording() {
+    const recorder = mediaRecorderRef.current;
+    audioChunksRef.current = [];
+    setRecording(false);
+    setRecordingSeconds(0);
+    setVoicePreview(null);
+    window.clearInterval(recordingTimerRef.current);
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+  }
+
+  function stopRecording() {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+    recorder.onstop = () => {
+      const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+      recorder.stream.getTracks().forEach((track) => track.stop());
+      window.clearInterval(recordingTimerRef.current);
+      setRecording(false);
+      setVoicePreview({
+        blob,
+        url: URL.createObjectURL(blob),
+        duration: recordingSeconds || 1,
+        mimeType: blob.type || "audio/webm",
+      });
+    };
+    recorder.stop();
+  }
+
+  async function sendVoiceMessage() {
+    if (!voicePreview || !activeConversationId) return;
+    if (voicePreview.blob.size > maxUploadSize) {
+      showToast("error", "Voice note too large", "Voice messages must be 5MB or smaller.");
+      return;
+    }
+
+    const path = `${currentUserId}/${activeConversationId}/voice-${Date.now()}.webm`;
+    const { error: uploadError } = await supabase.storage.from("voice-messages").upload(path, voicePreview.blob, {
+      contentType: voicePreview.mimeType,
+      upsert: false,
+    });
+
+    if (uploadError) {
+      showToast("error", "Voice upload failed", uploadError.message);
+      return;
+    }
+
+    const { data: signed } = await supabase.storage.from("voice-messages").createSignedUrl(path, 60 * 60);
+    const tempId = `voice-temp-${Date.now()}`;
+    setMessages((current) => [...current, {
+      id: tempId,
+      body: "Voice message",
+      message_type: "voice",
+      voice_url: path,
+      voice_duration: voicePreview.duration,
+      signedVoiceUrl: signed?.signedUrl ?? voicePreview.url,
+      created_at: new Date().toISOString(),
+      sender_id: currentUserId,
+      sender: profile,
+      attachments: [],
+      message_reactions: [],
+      pending: true,
+    }]);
+
+    const { error } = await supabase.from("messages").insert({
+      conversation_id: activeConversationId,
+      sender_id: currentUserId,
+      body: "Voice message",
+      message_type: "voice",
+      voice_url: path,
+      voice_duration: voicePreview.duration,
+      media_type: voicePreview.mimeType,
+      file_size: voicePreview.blob.size,
+    });
+
+    if (error) {
+      showToast("error", "Voice message failed", error.message);
+      setMessages((current) => current.filter((message) => message.id !== tempId));
+      return;
+    }
+
+    URL.revokeObjectURL(voicePreview.url);
+    setVoicePreview(null);
+  }
+
+  function toggleVoicePlayback(message) {
+    const audio = audioRefs.current[message.id];
+    if (!audio) return;
+    if (playingVoiceId === message.id) {
+      audio.pause();
+      setPlayingVoiceId("");
+      return;
+    }
+    Object.values(audioRefs.current).forEach((item) => item?.pause());
+    audio.play();
+    setPlayingVoiceId(message.id);
+  }
+
   async function createGroup(event) {
     event.preventDefault();
     if (!groupName.trim()) return;
@@ -607,35 +780,17 @@ export default function ChatApp() {
       groupImageUrl = data.publicUrl;
     }
 
-    const { data: conversation, error: conversationError } = await supabase
-      .from("conversations")
-      .insert({ type: "group", name: groupName.trim(), description: groupDescription.trim(), image_url: groupImageUrl || null, created_by: currentUserId })
-      .select("id")
-      .single();
+    const { data: conversationId, error: conversationError } = await supabase.rpc("create_group_conversation", {
+      group_name: groupName.trim(),
+      group_description: groupDescription.trim(),
+      group_image_url: groupImageUrl || null,
+      member_ids: selectedFriendIds,
+    });
 
     if (conversationError) {
-      setNotice(conversationError.message);
+      showToast("error", "Group not created", conversationError.message);
       return;
     }
-
-    const memberRows = [currentUserId, ...selectedFriendIds].map((userId) => ({
-      conversation_id: conversation.id,
-      user_id: userId,
-      role: userId === currentUserId ? "owner" : "member",
-    }));
-
-    await supabase.from("conversation_members").insert(memberRows);
-    await supabase.from("groups").insert({ id: conversation.id, name: groupName.trim(), description: groupDescription.trim(), image_url: groupImageUrl || null, created_by: currentUserId });
-    await supabase.from("group_members").insert(memberRows.map((row) => ({ group_id: conversation.id, user_id: row.user_id, role: row.role })));
-    await supabase.from("notifications").insert(selectedFriendIds.map((userId) => ({
-      user_id: userId,
-      actor_id: currentUserId,
-      type: "added_to_group",
-      title: "Added to group",
-      body: `${displayName(profile)} added you to ${groupName.trim()}.`,
-      entity_type: "conversation",
-      entity_id: conversation.id,
-    })));
 
     setGroupName("");
     setGroupDescription("");
@@ -643,7 +798,7 @@ export default function ChatApp() {
     setGroupMembers([]);
     setGroupOpen(false);
     showToast("success", "Group created", `${groupName.trim()} is ready.`);
-    setActiveConversationId(conversation.id);
+    setActiveConversationId(conversationId);
     setView("chats");
     loadData();
   }
@@ -765,8 +920,6 @@ export default function ChatApp() {
     );
   }
 
-  const friendProfiles = users.filter((user) => friendIds.includes(user.id));
-
   const controlPanel = (
     <div className="nex-control-content">
       <div className="nex-community-switcher">
@@ -797,27 +950,29 @@ export default function ChatApp() {
         {view === "chats" ? (
           <section className="nex-list-section">
             <div className="nex-section-title">
-              <span>Chats</span>
-              <button className="nex-mini-icon" type="button" title="Create group" onClick={() => setGroupOpen(true)}>
-                <Plus size={15} />
-              </button>
+              <span>{activeFilter === "Favorites" ? "Favorite Chats" : "Chats"}</span>
+              {activeFilter === "Favorites" ? null : (
+                <button className="nex-mini-icon" type="button" title="Create group" onClick={() => setGroupOpen(true)}>
+                  <Plus size={15} />
+                </button>
+              )}
             </div>
+            {activeFilter === "Favorites" ? (
+              <FavoriteManager friends={friendProfiles} favorites={favorites} onToggle={toggleFavoriteUser} />
+            ) : null}
             {filteredConversations.map((conversation) => {
-              const favorite = favorites.some((item) => item.conversation_id === conversation.id || item.target_user_id === conversation.other?.id);
               return (
                 <button key={conversation.id} className="nex-list-item" data-active={conversation.id === activeConversationId} type="button" onClick={() => setActiveConversationId(conversation.id)}>
-                  {conversation.type === "group" ? <span className="nex-server-icon bg-gradient-to-br from-purple-500 to-cyan-400">{initials(conversation.title)}</span> : <Avatar profile={conversation.other} />}
+                  {conversation.type === "group" ? <GroupAvatar conversation={conversation} /> : <Avatar profile={conversation.other} />}
                   <span className="min-w-0">
                     <strong>{conversation.title}</strong>
                     <small>{conversation.latest?.body ?? conversation.subtitle}</small>
                   </span>
-                  <span className={`nex-star ${favorite ? "active" : ""}`} onClick={(event) => { event.stopPropagation(); toggleFavorite(conversation); }}>
-                    <Star size={16} fill={favorite ? "currentColor" : "none"} />
-                  </span>
+                  {conversation.unreadCount ? <em className="nex-unread-count">{conversation.unreadCount}</em> : null}
                 </button>
               );
             })}
-            {!filteredConversations.length ? <p className="nex-empty-copy">Accepted friends and groups will appear here.</p> : null}
+            {!filteredConversations.length ? <p className="nex-empty-copy">{activeFilter === "Favorites" ? "Choose friends above to add them to favorites." : "Accepted friends and groups will appear here."}</p> : null}
           </section>
         ) : null}
 
@@ -924,6 +1079,17 @@ export default function ChatApp() {
                 setAttachmentFile={setAttachmentFile}
                 uploadProgress={uploadProgress}
                 messagesEndRef={messagesEndRef}
+                recording={recording}
+                recordingSeconds={recordingSeconds}
+                voicePreview={voicePreview}
+                onStartRecording={startRecording}
+                onStopRecording={stopRecording}
+                onCancelRecording={cancelRecording}
+                onSendVoice={sendVoiceMessage}
+                playingVoiceId={playingVoiceId}
+                audioRefs={audioRefs}
+                onToggleVoice={toggleVoicePlayback}
+                setPlayingVoiceId={setPlayingVoiceId}
               />
             ) : (
               <EmptyChat key="empty-chat" />
@@ -1031,6 +1197,30 @@ function ExploreList({ users, friendIds, pendingByUser, onRequest }) {
       })}
       {!users.length ? <p className="nex-empty-copy">No users found.</p> : null}
     </section>
+  );
+}
+
+function FavoriteManager({ friends, favorites, onToggle }) {
+  return (
+    <div className="nex-favorite-manager">
+      <div className="nex-section-title">
+        <span>Add From Friends</span>
+      </div>
+      {friends.map((friend) => {
+        const active = favorites.some((favorite) => favorite.target_user_id === friend.id);
+        return (
+          <button key={friend.id} className="nex-favorite-row" data-active={active} type="button" onClick={() => onToggle(friend)}>
+            <Avatar profile={friend} />
+            <span>
+              <strong>{displayName(friend)}</strong>
+              <small>{active ? "Favorite" : "Tap to add"}</small>
+            </span>
+            <em>{active ? "Remove" : "Add"}</em>
+          </button>
+        );
+      })}
+      {!friends.length ? <p className="nex-empty-copy">Accepted friends will appear here.</p> : null}
+    </div>
   );
 }
 
@@ -1202,6 +1392,17 @@ function ChatConversation({
   setAttachmentFile,
   uploadProgress,
   messagesEndRef,
+  recording,
+  recordingSeconds,
+  voicePreview,
+  onStartRecording,
+  onStopRecording,
+  onCancelRecording,
+  onSendVoice,
+  playingVoiceId,
+  audioRefs,
+  onToggleVoice,
+  setPlayingVoiceId,
 }) {
   function groupedReactions(message) {
     return (message.message_reactions ?? []).reduce((acc, reaction) => {
@@ -1231,6 +1432,15 @@ function ChatConversation({
                     {mine ? <MessageTicks message={message} /> : null}
                   </div>
                   {message.body ? <p>{message.body}</p> : null}
+                  {message.message_type === "voice" ? (
+                    <VoiceMessage
+                      message={message}
+                      playing={playingVoiceId === message.id}
+                      audioRefs={audioRefs}
+                      onToggle={onToggleVoice}
+                      onEnded={() => setPlayingVoiceId("")}
+                    />
+                  ) : null}
                   {(message.attachments ?? []).map((attachment) => <AttachmentPreview key={attachment.id} attachment={attachment} />)}
                   {reactions.length ? (
                     <div className="nex-reactions">
@@ -1245,7 +1455,7 @@ function ChatConversation({
                   <AnimatePresence>
                     {reactionFor === message.id ? (
                       <motion.div className="nex-reaction-popover" initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.95 }}>
-                        {reactionBank.map((emoji) => <button key={emoji} type="button" onClick={() => onReact(message, emoji)}>{emoji}</button>)}
+                        {reactionOptions.map((emoji) => <button key={emoji} type="button" onClick={() => onReact(message, emoji)}>{emoji}</button>)}
                       </motion.div>
                     ) : null}
                   </AnimatePresence>
@@ -1266,6 +1476,26 @@ function ChatConversation({
         </div>
       </div>
       <form className="nex-composer" onSubmit={onSend}>
+        <AnimatePresence>
+          {recording ? (
+            <motion.div className="nex-recording-bar" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}>
+              <span className="nex-record-dot" />
+              <strong>{formatDuration(recordingSeconds)}</strong>
+              <button type="button" onClick={onCancelRecording}><X size={16} /></button>
+              <button type="button" onClick={onStopRecording}><Square size={15} /></button>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+        <AnimatePresence>
+          {voicePreview ? (
+            <motion.div className="nex-voice-preview" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}>
+              <audio src={voicePreview.url} controls />
+              <span>{formatDuration(voicePreview.duration)}</span>
+              <button type="button" onClick={onCancelRecording}><X size={16} /></button>
+              <button type="button" onClick={onSendVoice}><Send size={16} /></button>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
         <label title="Attach file"><Paperclip size={20} /><input type="file" onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)} /></label>
         <label title="Add media"><ImagePlus size={20} /><input type="file" accept="image/*,video/*" onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)} /></label>
         <textarea
@@ -1281,13 +1511,14 @@ function ChatConversation({
           placeholder={`Message ${conversation.title}`}
         />
         <button type="button" title="Emoji" onClick={() => setEmojiOpen((value) => !value)}><Laugh size={20} /></button>
+        <button type="button" title="Record voice message" onClick={recording ? onStopRecording : onStartRecording}><Mic size={19} /></button>
         <button className="send" type="submit" title="Send message"><Send size={19} /></button>
         <AnimatePresence>
           {emojiOpen ? (
             <motion.div className="nex-emoji-panel" initial={{ opacity: 0, y: 12, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.96 }}>
               <strong>Emoji</strong>
               <div>
-                {emojiBank.map((emoji) => <button key={emoji} type="button" onClick={() => onDraftChange(`${draft}${emoji}`)}>{emoji}</button>)}
+                {emojiOptions.map((emoji) => <button key={emoji} type="button" onClick={() => onDraftChange(`${draft}${emoji}`)}>{emoji}</button>)}
               </div>
             </motion.div>
           ) : null}
@@ -1309,6 +1540,27 @@ function MessageTicks({ message }) {
   if (message.read_at) return <span className="nex-ticks read"><CheckCheck size={15} /></span>;
   if (message.delivered_at) return <span className="nex-ticks delivered"><CheckCheck size={15} /></span>;
   return <span className="nex-ticks sent"><Check size={14} /></span>;
+}
+
+function VoiceMessage({ message, playing, audioRefs, onToggle, onEnded }) {
+  return (
+    <div className="nex-voice-message">
+      <button type="button" onClick={() => onToggle(message)}>
+        {playing ? <Pause size={17} /> : <Play size={17} />}
+      </button>
+      <div className={playing ? "nex-wave playing" : "nex-wave"}>
+        {Array.from({ length: 18 }).map((_, index) => <span key={index} style={{ "--i": index }} />)}
+      </div>
+      <strong>{formatDuration(message.voice_duration ?? 0)}</strong>
+      <audio
+        ref={(node) => {
+          if (node) audioRefs.current[message.id] = node;
+        }}
+        src={message.signedVoiceUrl}
+        onEnded={onEnded}
+      />
+    </div>
+  );
 }
 
 function AttachmentPreview({ attachment }) {

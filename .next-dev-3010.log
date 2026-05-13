@@ -1,0 +1,14 @@
+
+> nexcord@1.0.0 dev
+> next dev -p 3010
+
+   ▲ Next.js 15.5.18
+   - Local:        http://localhost:3010
+   - Network:      http://192.168.18.212:3010
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 7.3s
+ ○ Compiling /app ...
+ ✓ Compiled /app in 4.6s (1519 modules)
+ GET /app 200 in 5585ms

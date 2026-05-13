@@ -1,0 +1,10 @@
+
+> nexcord@1.0.0 start
+> next start -p 3011
+
+   ▲ Next.js 15.5.18
+   - Local:        http://localhost:3011
+   - Network:      http://192.168.18.212:3011
+
+ ✓ Starting...
+ ✓ Ready in 682ms

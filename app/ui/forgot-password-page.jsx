@@ -25,6 +25,25 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState("");
 
+  async function postJson(url, body) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const contentType = response.headers.get("content-type") ?? "";
+    const data = contentType.includes("application/json")
+      ? await response.json()
+      : { message: "The reset service is unavailable right now. Please try again shortly." };
+
+    if (!response.ok) {
+      throw new Error(data.message ?? "Request failed.");
+    }
+
+    return data;
+  }
+
   async function lookup(event) {
     event.preventDefault();
     setNotice("");
@@ -40,22 +59,16 @@ export default function ForgotPasswordPage() {
     }
 
     setLoading(true);
-    const response = await fetch("/api/auth/forgot/lookup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ method, identifier }),
-    });
-    const data = await response.json();
-    setLoading(false);
-
-    if (!response.ok) {
-      setNotice(data.message);
-      return;
+    try {
+      const data = await postJson("/api/auth/forgot/lookup", { method, identifier });
+      setUserId(data.userId);
+      setNotice(data.message ?? "Verification code prepared. For now, use 123456.");
+      setStep("otp");
+    } catch (error) {
+      setNotice(error.message);
+    } finally {
+      setLoading(false);
     }
-
-    setUserId(data.userId);
-    setNotice(data.message ?? "Verification code prepared. For now, use 123456.");
-    setStep("otp");
   }
 
   function verifyOtp(event) {
@@ -86,21 +99,15 @@ export default function ForgotPasswordPage() {
     }
 
     setLoading(true);
-    const response = await fetch("/api/auth/forgot/reset", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, otp, password }),
-    });
-    const data = await response.json();
-    setLoading(false);
-
-    if (!response.ok) {
-      setNotice(data.message);
-      return;
+    try {
+      await postJson("/api/auth/forgot/reset", { userId, otp, password });
+      setNotice("Password reset successful. You can now log in with your new password.");
+      setStep("done");
+    } catch (error) {
+      setNotice(error.message);
+    } finally {
+      setLoading(false);
     }
-
-    setNotice("Password reset successful. You can now log in with your new password.");
-    setStep("done");
   }
 
   const activeMethod = methods.find((item) => item.id === method);

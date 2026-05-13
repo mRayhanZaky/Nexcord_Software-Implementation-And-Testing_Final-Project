@@ -8,8 +8,11 @@ import {
   AtSign,
   Bell,
   Check,
+  CheckCheck,
   Compass,
   Crown,
+  Download,
+  FileText,
   Hash,
   ImagePlus,
   Laugh,
@@ -22,6 +25,7 @@ import {
   Send,
   Settings,
   Shield,
+  SmilePlus,
   Star,
   Trash2,
   Upload,
@@ -32,6 +36,9 @@ import {
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 const filters = ["All", "Unread", "Favorites", "Groups"];
+const emojiBank = ["😀", "😂", "😍", "🥳", "😎", "😭", "😡", "👍", "👎", "🙏", "🔥", "💜", "💙", "✨", "🚀", "✅", "🎉", "💯", "🤝", "👀", "😮", "😴", "🤔", "❤️"];
+const reactionBank = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+const maxUploadSize = 5 * 1024 * 1024;
 
 const navItems = [
   { id: "explore", label: "Explore", icon: Compass },
@@ -61,6 +68,12 @@ function userHandle(profile) {
 
 function avatarUrl(profile) {
   return profile?.avatar_url || "";
+}
+
+function formatBytes(value = 0) {
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function Avatar({ profile, size = "md", className = "" }) {
@@ -95,15 +108,31 @@ export default function ChatApp() {
   const [activeConversationId, setActiveConversationId] = useState("");
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [reactionFor, setReactionFor] = useState("");
+  const [attachmentFile, setAttachmentFile] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [typingUsers, setTypingUsers] = useState([]);
+  const [toast, setToast] = useState(null);
   const [groupOpen, setGroupOpen] = useState(false);
   const [groupName, setGroupName] = useState("");
+  const [groupDescription, setGroupDescription] = useState("");
+  const [groupImageFile, setGroupImageFile] = useState(null);
   const [groupMembers, setGroupMembers] = useState([]);
   const [settingsForm, setSettingsForm] = useState({ username: "", fullName: "", bio: "" });
   const [securityUnlocked, setSecurityUnlocked] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const messagesEndRef = useRef(null);
+  const typingTimerRef = useRef(null);
+  const typingChannelRef = useRef(null);
 
   const currentUserId = session?.user?.id;
+
+  const showToast = useCallback((type, title, body = "") => {
+    setToast({ id: Date.now(), type, title, body });
+    window.setTimeout(() => setToast((current) => (current?.title === title ? null : current)), 3200);
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!currentUserId) return;
@@ -151,7 +180,7 @@ export default function ChatApp() {
     if (conversationIds.length) {
       const [membersResult, latestResult] = await Promise.all([
         supabase.from("conversation_members").select("conversation_id, user_id, users(id, full_name, username, email, display_name, avatar_url, status)").in("conversation_id", conversationIds),
-        supabase.from("messages").select("id, conversation_id, body, created_at, sender_id").in("conversation_id", conversationIds).order("created_at", { ascending: false }).limit(200),
+        supabase.from("messages").select("id, conversation_id, body, message_type, file_name, created_at, sender_id").in("conversation_id", conversationIds).order("created_at", { ascending: false }).limit(200),
       ]);
       if (membersResult.error) setNotice(membersResult.error.message);
       if (latestResult.error) setNotice(latestResult.error.message);
@@ -232,7 +261,7 @@ export default function ChatApp() {
     async function loadMessages() {
       const { data, error } = await supabase
         .from("messages")
-        .select("id, body, created_at, sender_id, conversation_id, sender:users!messages_sender_id_fkey(id, full_name, username, display_name, email, avatar_url, status)")
+        .select("id, body, message_type, delivered_at, read_at, media_url, media_type, file_name, file_size, created_at, sender_id, conversation_id, sender:users!messages_sender_id_fkey(id, full_name, username, display_name, email, avatar_url, status), attachments(id, storage_path, file_name, mime_type, size_bytes), message_reactions(id, emoji, user_id, created_at, user:users!message_reactions_user_id_fkey(id, username, display_name, full_name, avatar_url)), message_receipts(message_id, user_id, delivered_at, read_at)")
         .eq("conversation_id", activeConversationId)
         .order("created_at", { ascending: true })
         .limit(150);
@@ -241,20 +270,96 @@ export default function ChatApp() {
         setNotice(error.message);
         return;
       }
-      setMessages(data ?? []);
+      const rows = data ?? [];
+      const messagesWithUrls = await Promise.all(rows.map(async (message) => {
+        const attachments = await Promise.all((message.attachments ?? []).map(async (attachment) => {
+          const { data: signed } = await supabase.storage.from("chat-attachments").createSignedUrl(attachment.storage_path, 60 * 60);
+          return { ...attachment, signedUrl: signed?.signedUrl ?? "" };
+        }));
+        return { ...message, attachments };
+      }));
+
+      setMessages(messagesWithUrls);
+
+      const unreadIds = rows.filter((message) => message.sender_id !== currentUserId && !message.read_at).map((message) => message.id);
+      if (unreadIds.length) {
+        const now = new Date().toISOString();
+        await supabase.from("message_receipts").upsert(unreadIds.map((id) => ({ message_id: id, user_id: currentUserId, delivered_at: now, read_at: now })), { onConflict: "message_id,user_id" });
+        await supabase.from("messages").update({ delivered_at: now, read_at: now }).in("id", unreadIds);
+      }
     }
 
     loadMessages();
 
     const channel = supabase
       .channel(`conversation:${activeConversationId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${activeConversationId}` }, loadMessages)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `conversation_id=eq.${activeConversationId}` }, loadMessages)
+      .on("postgres_changes", { event: "*", schema: "public", table: "attachments" }, loadMessages)
+      .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, loadMessages)
+      .on("postgres_changes", { event: "*", schema: "public", table: "message_receipts" }, loadMessages)
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeConversationId, supabase]);
+  }, [activeConversationId, currentUserId, supabase]);
+
+  useEffect(() => {
+    if (!activeConversationId || !currentUserId) {
+      setTypingUsers([]);
+      return;
+    }
+
+    const channel = supabase.channel(`typing:${activeConversationId}`, {
+      config: { presence: { key: currentUserId } },
+    });
+    typingChannelRef.current = channel;
+
+    channel
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState();
+        const typing = Object.values(state)
+          .flat()
+          .filter((entry) => entry.user_id !== currentUserId && entry.typing)
+          .map((entry) => entry.name);
+        setTypingUsers([...new Set(typing)]);
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({ user_id: currentUserId, name: displayName(profile), typing: false });
+        }
+      });
+
+    return () => {
+      typingChannelRef.current = null;
+      supabase.removeChannel(channel);
+    };
+  }, [activeConversationId, currentUserId, profile, supabase]);
+
+  useEffect(() => {
+    if (!currentUserId || !conversations.length) return;
+    const conversationIds = new Set(conversations.map((conversation) => conversation.id));
+
+    async function markDelivered(message) {
+      if (!conversationIds.has(message.conversation_id) || message.sender_id === currentUserId || message.conversation_id === activeConversationId) return;
+      const now = new Date().toISOString();
+      await supabase.from("message_receipts").upsert({ message_id: message.id, user_id: currentUserId, delivered_at: now }, { onConflict: "message_id,user_id" });
+      await supabase.from("messages").update({ delivered_at: now }).eq("id", message.id).is("delivered_at", null);
+    }
+
+    const channel = supabase
+      .channel(`delivery:${currentUserId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => markDelivered(payload.new))
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeConversationId, conversations, currentUserId, supabase]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages.length, typingUsers.length]);
 
   const friendIds = useMemo(() => friendships.map((friendship) => (friendship.user_low_id === currentUserId ? friendship.user_high_id : friendship.user_low_id)), [friendships, currentUserId]);
   const pendingByUser = useMemo(() => {
@@ -359,35 +464,152 @@ export default function ChatApp() {
     loadData();
   }
 
+  function messageTypeForFile(file) {
+    if (!file) return "text";
+    if (file.type.startsWith("image/")) return "image";
+    if (file.type.startsWith("video/")) return "video";
+    return "file";
+  }
+
+  function handleDraftChange(value) {
+    setDraft(value);
+    if (!typingChannelRef.current || !currentUserId) return;
+    typingChannelRef.current.track({ user_id: currentUserId, name: displayName(profile), typing: true });
+    window.clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = window.setTimeout(() => {
+      typingChannelRef.current?.track({ user_id: currentUserId, name: displayName(profile), typing: false });
+    }, 1200);
+  }
+
   async function sendMessage(event) {
     event.preventDefault();
     const body = draft.trim();
-    if (!body || !activeConversationId) return;
+    if ((!body && !attachmentFile) || !activeConversationId) return;
+
+    if (attachmentFile && attachmentFile.size > maxUploadSize) {
+      showToast("error", "Upload too large", "Attachments must be 5MB or smaller.");
+      return;
+    }
 
     setDraft("");
-    const { error } = await supabase.from("messages").insert({
+    setEmojiOpen(false);
+    setUploadProgress(attachmentFile ? 18 : 0);
+    typingChannelRef.current?.track({ user_id: currentUserId, name: displayName(profile), typing: false });
+
+    let storagePath = "";
+    let signedUrl = "";
+    const file = attachmentFile;
+    const messageType = messageTypeForFile(file);
+    setAttachmentFile(null);
+
+    if (file) {
+      storagePath = `${currentUserId}/${activeConversationId}/${Date.now()}-${file.name.replace(/[^\w.\-]/g, "_")}`;
+      const { error: uploadError } = await supabase.storage.from("chat-attachments").upload(storagePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+      setUploadProgress(70);
+
+      if (uploadError) {
+        showToast("error", "Upload failed", uploadError.message);
+        setUploadProgress(0);
+        return;
+      }
+
+      const { data: signed } = await supabase.storage.from("chat-attachments").createSignedUrl(storagePath, 60 * 60);
+      signedUrl = signed?.signedUrl ?? "";
+    }
+
+    const tempId = `temp-${Date.now()}`;
+    setMessages((current) => [...current, {
+      id: tempId,
+      body: body || file?.name || "",
+      message_type: messageType,
+      media_type: file?.type ?? null,
+      file_name: file?.name ?? null,
+      file_size: file?.size ?? null,
+      created_at: new Date().toISOString(),
+      sender_id: currentUserId,
+      sender: profile,
+      attachments: file ? [{ id: `${tempId}-att`, file_name: file.name, mime_type: file.type, size_bytes: file.size, signedUrl }] : [],
+      message_reactions: [],
+      pending: true,
+    }]);
+
+    const { data, error } = await supabase.from("messages").insert({
       conversation_id: activeConversationId,
       sender_id: currentUserId,
-      body,
-    });
+      body: body || file?.name || "",
+      message_type: messageType,
+      media_type: file?.type ?? null,
+      file_name: file?.name ?? null,
+      file_size: file?.size ?? null,
+      media_url: storagePath || null,
+    }).select("id").single();
+
     if (error) {
-      setNotice(error.message);
+      showToast("error", "Message failed", error.message);
       setDraft(body);
+      setMessages((current) => current.filter((message) => message.id !== tempId));
+      setUploadProgress(0);
+      return;
     }
+
+    if (file && data?.id) {
+      const { error: attachmentError } = await supabase.from("attachments").insert({
+        message_id: data.id,
+        storage_path: storagePath,
+        file_name: file.name,
+        mime_type: file.type,
+        size_bytes: file.size,
+      });
+      if (attachmentError) showToast("error", "Attachment saved late", attachmentError.message);
+    }
+
+    setUploadProgress(file ? 100 : 0);
+    window.setTimeout(() => setUploadProgress(0), 700);
+  }
+
+  async function toggleReaction(message, emoji) {
+    const existing = (message.message_reactions ?? []).find((reaction) => reaction.user_id === currentUserId && reaction.emoji === emoji);
+    if (existing) {
+      const { error } = await supabase.from("message_reactions").delete().eq("id", existing.id);
+      if (error) showToast("error", "Reaction failed", error.message);
+    } else {
+      const { error } = await supabase.from("message_reactions").insert({ message_id: message.id, user_id: currentUserId, emoji });
+      if (error) showToast("error", "Reaction failed", error.message);
+    }
+    setReactionFor("");
   }
 
   async function createGroup(event) {
     event.preventDefault();
     if (!groupName.trim()) return;
+    if (groupImageFile && groupImageFile.size > maxUploadSize) {
+      showToast("error", "Group image too large", "Group images must be 5MB or smaller.");
+      return;
+    }
     const selectedFriendIds = groupMembers.filter((id) => friendIds.includes(id));
     if (!selectedFriendIds.length) {
       setNotice("Choose at least one accepted friend.");
       return;
     }
 
+    let groupImageUrl = "";
+    if (groupImageFile) {
+      const path = `${currentUserId}/group-${Date.now()}-${groupImageFile.name.replace(/[^\w.\-]/g, "_")}`;
+      const { error: uploadError } = await supabase.storage.from("group-images").upload(path, groupImageFile, { upsert: false });
+      if (uploadError) {
+        showToast("error", "Group image failed", uploadError.message);
+        return;
+      }
+      const { data } = supabase.storage.from("group-images").getPublicUrl(path);
+      groupImageUrl = data.publicUrl;
+    }
+
     const { data: conversation, error: conversationError } = await supabase
       .from("conversations")
-      .insert({ type: "group", name: groupName.trim(), created_by: currentUserId })
+      .insert({ type: "group", name: groupName.trim(), description: groupDescription.trim(), image_url: groupImageUrl || null, created_by: currentUserId })
       .select("id")
       .single();
 
@@ -403,7 +625,7 @@ export default function ChatApp() {
     }));
 
     await supabase.from("conversation_members").insert(memberRows);
-    await supabase.from("groups").insert({ id: conversation.id, name: groupName.trim(), created_by: currentUserId });
+    await supabase.from("groups").insert({ id: conversation.id, name: groupName.trim(), description: groupDescription.trim(), image_url: groupImageUrl || null, created_by: currentUserId });
     await supabase.from("group_members").insert(memberRows.map((row) => ({ group_id: conversation.id, user_id: row.user_id, role: row.role })));
     await supabase.from("notifications").insert(selectedFriendIds.map((userId) => ({
       user_id: userId,
@@ -416,8 +638,11 @@ export default function ChatApp() {
     })));
 
     setGroupName("");
+    setGroupDescription("");
+    setGroupImageFile(null);
     setGroupMembers([]);
     setGroupOpen(false);
+    showToast("success", "Group created", `${groupName.trim()} is ready.`);
     setActiveConversationId(conversation.id);
     setView("chats");
     loadData();
@@ -446,10 +671,13 @@ export default function ChatApp() {
         bio: settingsForm.bio.trim(),
       })
       .eq("id", currentUserId);
-    if (error) setNotice(error.message);
+    if (error) {
+      setNotice(error.message);
+      showToast("error", "Profile not saved", error.message);
+    }
     else {
       setNotice("Profile updated.");
-      window.alert("Profile updated successfully.");
+      showToast("success", "Profile saved", "Your Nexcord identity has been updated.");
       loadData();
     }
   }
@@ -614,6 +842,15 @@ export default function ChatApp() {
 
   return (
     <main className="nex-dashboard">
+      <AnimatePresence>
+        {toast ? (
+          <motion.div className={`nex-toast ${toast.type}`} initial={{ opacity: 0, y: -18, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -18, scale: 0.96 }}>
+            <strong>{toast.title}</strong>
+            {toast.body ? <span>{toast.body}</span> : null}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
       <aside className="nex-shadow-sidebar" aria-label="Primary navigation">
         <Image className="nex-logo-tile" src="/nexcord_logo.png" alt="Nexcord" width={48} height={48} priority />
         <nav>
@@ -668,7 +905,26 @@ export default function ChatApp() {
         <AnimatePresence mode="wait">
           {view === "chats" ? (
             activeConversation ? (
-              <ChatConversation key={activeConversation.id} conversation={activeConversation} messages={messages} draft={draft} setDraft={setDraft} onSend={sendMessage} notice={notice} />
+              <ChatConversation
+                key={activeConversation.id}
+                conversation={activeConversation}
+                messages={messages}
+                draft={draft}
+                onDraftChange={handleDraftChange}
+                onSend={sendMessage}
+                notice={notice}
+                currentUserId={currentUserId}
+                typingUsers={typingUsers}
+                emojiOpen={emojiOpen}
+                setEmojiOpen={setEmojiOpen}
+                reactionFor={reactionFor}
+                setReactionFor={setReactionFor}
+                onReact={toggleReaction}
+                attachmentFile={attachmentFile}
+                setAttachmentFile={setAttachmentFile}
+                uploadProgress={uploadProgress}
+                messagesEndRef={messagesEndRef}
+              />
             ) : (
               <EmptyChat key="empty-chat" />
             )
@@ -726,9 +982,18 @@ export default function ChatApp() {
             <motion.form className="nex-modal-card" onSubmit={createGroup} initial={{ scale: 0.94, y: 18 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.94, y: 18 }}>
               <h2>Create Group</h2>
               <p>Only accepted friends can be added.</p>
+              <label className="nex-group-image-picker">
+                <span>{groupImageFile ? groupImageFile.name : "Add group picture"}</span>
+                <Upload size={16} />
+                <input type="file" accept="image/*" onChange={(event) => setGroupImageFile(event.target.files?.[0] ?? null)} />
+              </label>
               <label className="nex-settings-field">
                 <span>Group name</span>
                 <input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="Project Alpha" />
+              </label>
+              <label className="nex-settings-field">
+                <span>Description</span>
+                <textarea value={groupDescription} onChange={(event) => setGroupDescription(event.target.value)} placeholder="What is this group about?" />
               </label>
               <div className="nex-member-grid">
                 {friendProfiles.map((friend) => (
@@ -919,34 +1184,147 @@ function SettingsPanel({ profile, settingsForm, setSettingsForm, securityUnlocke
   );
 }
 
-function ChatConversation({ conversation, messages, draft, setDraft, onSend, notice }) {
+function ChatConversation({
+  conversation,
+  messages,
+  draft,
+  onDraftChange,
+  onSend,
+  notice,
+  currentUserId,
+  typingUsers,
+  emojiOpen,
+  setEmojiOpen,
+  reactionFor,
+  setReactionFor,
+  onReact,
+  attachmentFile,
+  setAttachmentFile,
+  uploadProgress,
+  messagesEndRef,
+}) {
+  function groupedReactions(message) {
+    return (message.message_reactions ?? []).reduce((acc, reaction) => {
+      acc[reaction.emoji] = acc[reaction.emoji] ?? { emoji: reaction.emoji, count: 0, names: [] };
+      acc[reaction.emoji].count += 1;
+      acc[reaction.emoji].names.push(displayName(reaction.user));
+      return acc;
+    }, {});
+  }
+
   return (
     <>
       <div className="nex-message-area">
         <div className="nex-watermark"><Image src="/nexcord_logo.png" alt="" width={340} height={340} priority /><span>NEXCORD</span></div>
         <div className="nex-date-chip">Live Conversation</div>
         <div className="nex-messages">
-          {messages.map((message, index) => (
-            <motion.article className="nex-message" key={message.id} initial={{ opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: Math.min(index * 0.025, 0.18) }}>
-              <Avatar profile={message.sender} />
-              <div>
-                <div className="nex-message-meta"><strong className="text-purple-200">{displayName(message.sender)}</strong><span>{new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></div>
-                <p>{message.body}</p>
-              </div>
-            </motion.article>
-          ))}
+          {messages.map((message, index) => {
+            const mine = message.sender_id === currentUserId;
+            const reactions = Object.values(groupedReactions(message));
+            return (
+              <motion.article className={`nex-message ${mine ? "mine" : "theirs"}`} key={message.id} initial={{ opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: Math.min(index * 0.025, 0.18) }}>
+                {!mine ? <Avatar profile={message.sender} /> : null}
+                <div className="nex-message-bubble">
+                  <div className="nex-message-meta">
+                    <strong className={mine ? "text-cyan-200" : "text-purple-200"}>{mine ? "You" : displayName(message.sender)}</strong>
+                    <span>{new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    {mine ? <MessageTicks message={message} /> : null}
+                  </div>
+                  {message.body ? <p>{message.body}</p> : null}
+                  {(message.attachments ?? []).map((attachment) => <AttachmentPreview key={attachment.id} attachment={attachment} />)}
+                  {reactions.length ? (
+                    <div className="nex-reactions">
+                      {reactions.map((reaction) => (
+                        <span key={reaction.emoji} title={reaction.names.join(", ")}>{reaction.emoji} {reaction.count}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="nex-message-tools">
+                    <button type="button" title="React" onClick={() => setReactionFor(reactionFor === message.id ? "" : message.id)}><SmilePlus size={15} /></button>
+                  </div>
+                  <AnimatePresence>
+                    {reactionFor === message.id ? (
+                      <motion.div className="nex-reaction-popover" initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.95 }}>
+                        {reactionBank.map((emoji) => <button key={emoji} type="button" onClick={() => onReact(message, emoji)}>{emoji}</button>)}
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
+                </div>
+              </motion.article>
+            );
+          })}
+          <AnimatePresence>
+            {typingUsers.length ? (
+              <motion.div className="nex-typing" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
+                {typingUsers.join(", ")} {typingUsers.length === 1 ? "is" : "are"} typing...
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
           {!messages.length ? <EmptyPanel title="No messages yet" body={`Start the conversation with ${conversation.title}.`} /> : null}
           {notice ? <p className="nex-notice">{notice}</p> : null}
+          <div ref={messagesEndRef} />
         </div>
       </div>
       <form className="nex-composer" onSubmit={onSend}>
-        <button type="button" title="Attach file"><Paperclip size={20} /></button>
-        <button type="button" title="Add image"><ImagePlus size={20} /></button>
-        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={`Message ${conversation.title}`} />
-        <button type="button" title="Emoji"><Laugh size={20} /></button>
+        <label title="Attach file"><Paperclip size={20} /><input type="file" onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)} /></label>
+        <label title="Add media"><ImagePlus size={20} /><input type="file" accept="image/*,video/*" onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)} /></label>
+        <textarea
+          value={draft}
+          onChange={(event) => onDraftChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              onSend(event);
+            }
+          }}
+          rows={1}
+          placeholder={`Message ${conversation.title}`}
+        />
+        <button type="button" title="Emoji" onClick={() => setEmojiOpen((value) => !value)}><Laugh size={20} /></button>
         <button className="send" type="submit" title="Send message"><Send size={19} /></button>
+        <AnimatePresence>
+          {emojiOpen ? (
+            <motion.div className="nex-emoji-panel" initial={{ opacity: 0, y: 12, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.96 }}>
+              <strong>Emoji</strong>
+              <div>
+                {emojiBank.map((emoji) => <button key={emoji} type="button" onClick={() => onDraftChange(`${draft}${emoji}`)}>{emoji}</button>)}
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+        {attachmentFile ? (
+          <div className="nex-attachment-chip">
+            <span>{attachmentFile.name} · {formatBytes(attachmentFile.size)}</span>
+            <button type="button" onClick={() => setAttachmentFile(null)}><X size={14} /></button>
+          </div>
+        ) : null}
+        {uploadProgress ? <span className="nex-upload-progress" style={{ width: `${uploadProgress}%` }} /> : null}
       </form>
     </>
+  );
+}
+
+function MessageTicks({ message }) {
+  if (message.pending) return <span className="nex-ticks sent"><Check size={14} /></span>;
+  if (message.read_at) return <span className="nex-ticks read"><CheckCheck size={15} /></span>;
+  if (message.delivered_at) return <span className="nex-ticks delivered"><CheckCheck size={15} /></span>;
+  return <span className="nex-ticks sent"><Check size={14} /></span>;
+}
+
+function AttachmentPreview({ attachment }) {
+  const mime = attachment.mime_type ?? "";
+  if (mime.startsWith("image/")) {
+    return <a className="nex-media-preview" href={attachment.signedUrl} target="_blank" rel="noreferrer"><img src={attachment.signedUrl} alt={attachment.file_name} /></a>;
+  }
+  if (mime.startsWith("video/")) {
+    return <video className="nex-video-preview" src={attachment.signedUrl} controls />;
+  }
+  return (
+    <a className="nex-file-preview" href={attachment.signedUrl} target="_blank" rel="noreferrer">
+      <FileText size={19} />
+      <span><strong>{attachment.file_name}</strong><small>{formatBytes(attachment.size_bytes)}</small></span>
+      <Download size={17} />
+    </a>
   );
 }
 

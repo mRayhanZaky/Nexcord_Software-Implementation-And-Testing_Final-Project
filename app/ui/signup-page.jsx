@@ -10,7 +10,7 @@ import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import { motion } from "framer-motion";
 import { AtSign, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail, UserRound, XCircle } from "lucide-react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { isEmail, passwordError, passwordScore, secretQuestions, usernameError } from "@/lib/auth/validation";
+import { isEmail, passwordError, passwordScore, usernameError } from "@/lib/auth/validation";
 import { BrandMark, NebulaShell } from "./motion-shell";
 
 export default function SignupPage() {
@@ -23,8 +23,6 @@ export default function SignupPage() {
     phoneNumber: "",
     password: "",
     confirmPassword: "",
-    secretQuestion: secretQuestions[0],
-    secretAnswer: "",
   });
   const [usernameState, setUsernameState] = useState({ checking: false, available: null, message: "" });
   const [loading, setLoading] = useState(false);
@@ -65,8 +63,6 @@ export default function SignupPage() {
     if (!form.phoneNumber || !isValidPhoneNumber(form.phoneNumber)) return setNotice("Enter a valid phone number.");
     if (pwdError) return setNotice(pwdError);
     if (!passwordsMatch) return setNotice("Passwords do not match.");
-    if (!form.secretAnswer.trim()) return setNotice("Secret answer is required.");
-
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
       email: form.email,
@@ -143,15 +139,6 @@ export default function SignupPage() {
               </div>
               <div className="strength-track">
                 <div className="strength-bar" style={{ width: `${(pwdScore / 5) * 100}%` }} />
-              </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="field">
-                  <label>Secret Question</label>
-                  <select value={form.secretQuestion} onChange={(event) => update("secretQuestion", event.target.value)}>
-                    {secretQuestions.map((question) => <option key={question}>{question}</option>)}
-                  </select>
-                </div>
-                <Field label="Secret Answer" value={form.secretAnswer} onChange={(value) => update("secretAnswer", value)} placeholder="Secret Answer" />
               </div>
               {notice ? <motion.p className={notice.includes("created") ? "form-success" : "form-error"} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>{notice}</motion.p> : null}
               <button className="neon-button w-full" type="submit" disabled={loading || usernameState.checking}>

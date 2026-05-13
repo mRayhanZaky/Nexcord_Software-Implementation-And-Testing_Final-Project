@@ -1,131 +1,252 @@
 "use client";
 
+import "./forgot-password.css";
+
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { KeyRound, Mail, ShieldQuestion } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, KeyRound, Mail, Phone, ShieldCheck } from "lucide-react";
 import { isEmail, passwordError } from "@/lib/auth/validation";
-import { BrandMark, NebulaShell } from "./motion-shell";
+
+const methods = [
+  { id: "email", label: "Email Verification", icon: Mail },
+  { id: "phone", label: "Phone Number", icon: Phone },
+];
 
 export default function ForgotPasswordPage() {
-  const [step, setStep] = useState(1);
-  const [email, setEmail] = useState("");
+  const [method, setMethod] = useState("email");
+  const [step, setStep] = useState("identify");
+  const [identifier, setIdentifier] = useState("");
   const [userId, setUserId] = useState("");
-  const [secretQuestion, setSecretQuestion] = useState("");
-  const [secretAnswer, setSecretAnswer] = useState("");
+  const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState("");
 
   async function lookup(event) {
     event.preventDefault();
     setNotice("");
-    if (!isEmail(email)) return setNotice("Enter a valid email address.");
+
+    if (method === "email" && !isEmail(identifier)) {
+      setNotice("Enter a valid email address.");
+      return;
+    }
+
+    if (method === "phone" && identifier.trim().length < 8) {
+      setNotice("Enter your registered phone number with country code.");
+      return;
+    }
 
     setLoading(true);
     const response = await fetch("/api/auth/forgot/lookup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ method, identifier }),
     });
     const data = await response.json();
     setLoading(false);
 
-    if (!response.ok) return setNotice(data.message);
+    if (!response.ok) {
+      setNotice(data.message);
+      return;
+    }
+
     setUserId(data.userId);
-    setSecretQuestion(data.secretQuestion);
-    setStep(2);
+    setNotice(data.message ?? "Verification code prepared. For now, use 123456.");
+    setStep("otp");
+  }
+
+  function verifyOtp(event) {
+    event.preventDefault();
+    setNotice("");
+
+    if (otp.trim() !== "123456") {
+      setNotice("Use the temporary code 123456.");
+      return;
+    }
+
+    setStep("password");
   }
 
   async function reset(event) {
     event.preventDefault();
     setNotice("");
+
     const validation = passwordError(password);
-    if (validation) return setNotice(validation);
-    if (password !== confirmPassword) return setNotice("Passwords do not match.");
+    if (validation) {
+      setNotice(validation);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setNotice("Passwords do not match.");
+      return;
+    }
 
     setLoading(true);
     const response = await fetch("/api/auth/forgot/reset", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, secretAnswer, password }),
+      body: JSON.stringify({ userId, otp, password }),
     });
     const data = await response.json();
     setLoading(false);
 
-    if (!response.ok) return setNotice(data.message);
-    setStep(3);
-    setNotice("Password reset complete.");
+    if (!response.ok) {
+      setNotice(data.message);
+      return;
+    }
+
+    setNotice("Password reset successful. You can now log in with your new password.");
+    setStep("done");
   }
 
+  const activeMethod = methods.find((item) => item.id === method);
+  const ActiveIcon = activeMethod.icon;
+
   return (
-    <NebulaShell>
-      <main className="grid min-h-screen place-items-center px-5 py-16">
-        <motion.section className="glass-panel w-[min(100%,520px)] p-7" initial={{ opacity: 0, y: 28, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }}>
-          <BrandMark />
-          <h1 className="mt-8 text-3xl font-black">Recover Your Access</h1>
-          <p className="mt-2 text-slate-400">A secure multi-step reset using your recovery question.</p>
-          <div className="my-6 grid grid-cols-3 gap-2">
-            {["Verify Email", "Secret Answer", "Reset Done"].map((label, index) => (
-              <div key={label} className={`rounded-2xl border px-3 py-2 text-xs ${step >= index + 1 ? "border-cyan-300/40 bg-cyan-300/10 text-cyan-100" : "border-white/10 bg-white/5 text-slate-500"}`}>{label}</div>
+    <main className="forgot-page">
+      <div className="forgot-stars" />
+
+      <section className="forgot-form-side">
+        <Link className="forgot-brand" href="/">
+          <Image src="/nexcord_logo.png" alt="Nexcord logo" width={48} height={48} priority />
+          <span>NEXCORD</span>
+        </Link>
+
+        <div className="forgot-card">
+          <div className="forgot-card-head">
+            <div className="forgot-icon">
+              <KeyRound size={24} />
+            </div>
+            <div>
+              <h1>Reset Your Password</h1>
+              <p>Verify your account, enter the temporary OTP, then choose a new password.</p>
+            </div>
+          </div>
+
+          <div className="forgot-tabs" role="tablist" aria-label="Reset method">
+            {methods.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                className={method === id ? "active" : ""}
+                onClick={() => {
+                  setMethod(id);
+                  setIdentifier("");
+                  setNotice("");
+                }}
+                disabled={step !== "identify"}
+              >
+                <Icon size={18} />
+                {label}
+              </button>
             ))}
           </div>
 
-          <AnimatePresence mode="wait">
-            {step === 1 ? (
-              <motion.form key="lookup" className="auth-form" onSubmit={lookup} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }}>
-                <div className="field">
-                  <label>Email</label>
-                  <div className="relative">
-                    <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input className="pl-10" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email@gmail.com" />
-                  </div>
-                </div>
-                <button className="neon-button w-full" disabled={loading} type="submit">{loading ? "Checking..." : "Verify Email"}</button>
-              </motion.form>
-            ) : null}
+          <div className="forgot-steps" aria-label="Reset progress">
+            {["Account", "OTP", "Password"].map((label, index) => {
+              const currentIndex = ["identify", "otp", "password", "done"].indexOf(step);
+              return (
+                <span key={label} className={currentIndex >= index ? "active" : ""}>
+                  {label}
+                </span>
+              );
+            })}
+          </div>
 
-            {step === 2 ? (
-              <motion.form key="reset" className="auth-form" onSubmit={reset} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }}>
-                <div className="field">
-                  <label>Security Question</label>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 text-sm text-slate-200">
-                    <ShieldQuestion className="mb-2 text-cyan-200" size={18} />
-                    {secretQuestion}
-                  </div>
-                </div>
-                <div className="field">
-                  <label>Secret Answer</label>
-                  <input value={secretAnswer} onChange={(event) => setSecretAnswer(event.target.value)} placeholder="Secret Answer" />
-                </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="field">
-                    <label>New Password</label>
-                    <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="New Password" />
-                  </div>
-                  <div className="field">
-                    <label>Confirm Password</label>
-                    <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Confirm Password" />
-                  </div>
-                </div>
-                <button className="neon-button w-full" disabled={loading} type="submit">{loading ? "Resetting..." : "Reset Password"}</button>
-              </motion.form>
-            ) : null}
+          {step === "identify" ? (
+            <form className="forgot-form" onSubmit={lookup}>
+              <label>{method === "email" ? "Registered Email Address" : "Registered Phone Number"}</label>
+              <div className="forgot-input">
+                <ActiveIcon size={18} />
+                <input
+                  value={identifier}
+                  onChange={(event) => setIdentifier(event.target.value)}
+                  placeholder={method === "email" ? "you@nexcord.com" : "+62 812 3456 7890"}
+                  inputMode={method === "email" ? "email" : "tel"}
+                />
+              </div>
+              <button className="forgot-primary" disabled={loading} type="submit">
+                {loading ? "Checking..." : "Send Verification Code"}
+              </button>
+            </form>
+          ) : null}
 
-            {step === 3 ? (
-              <motion.div key="done" className="text-center" initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }}>
-                <KeyRound className="mx-auto mb-4 text-cyan-200" size={42} />
-                <h2 className="text-2xl font-black">Access restored</h2>
-                <p className="text-slate-400">Your password has been updated.</p>
-                <Link className="neon-button mt-4" href="/login">Return to Login</Link>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+          {step === "otp" ? (
+            <form className="forgot-form" onSubmit={verifyOtp}>
+              <div className="forgot-note">
+                <ShieldCheck size={18} />
+                We found your account. Real delivery will be configured later. For now, use OTP <strong>123456</strong>.
+              </div>
+              <label>Six Digit Verification Code</label>
+              <div className="forgot-input">
+                <ShieldCheck size={18} />
+                <input
+                  value={otp}
+                  onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="123456"
+                  inputMode="numeric"
+                  maxLength={6}
+                />
+              </div>
+              <button className="forgot-primary" type="submit">Verify Code</button>
+            </form>
+          ) : null}
 
-          {notice ? <motion.p className={step === 3 ? "form-success" : "form-error"} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>{notice}</motion.p> : null}
-        </motion.section>
-      </main>
-    </NebulaShell>
+          {step === "password" ? (
+            <form className="forgot-form" onSubmit={reset}>
+              <label>New Password</label>
+              <div className="forgot-input">
+                <KeyRound size={18} />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="New password"
+                />
+                <button className="forgot-eye" type="button" onClick={() => setShowPassword((value) => !value)}>
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              <label>Confirm Password</label>
+              <div className="forgot-input">
+                <KeyRound size={18} />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder="Confirm password"
+                />
+              </div>
+              <button className="forgot-primary" disabled={loading} type="submit">
+                {loading ? "Updating..." : "Reset Password"}
+              </button>
+            </form>
+          ) : null}
+
+          {step === "done" ? (
+            <div className="forgot-done">
+              <CheckCircle2 size={52} />
+              <h2>Password Reset Successful</h2>
+              <p>You can now log in with your new password.</p>
+              <Link className="forgot-primary" href="/login">Back to Login</Link>
+            </div>
+          ) : null}
+
+          {notice ? <p className={step === "done" ? "forgot-success" : "forgot-error"}>{notice}</p> : null}
+        </div>
+      </section>
+
+      <section className="forgot-logo-side" aria-label="Nexcord brand">
+        <div className="forgot-orbit">
+          <Image src="/nexcord_logo.png" alt="Nexcord logo" width={260} height={260} priority />
+        </div>
+        <h2>NEXCORD</h2>
+        <p>Connecting Communities</p>
+      </section>
+    </main>
   );
 }

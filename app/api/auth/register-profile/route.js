@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
-import { hashSecretAnswer } from "@/lib/auth/secret";
 import { isEmail, passwordError, usernameError } from "@/lib/auth/validation";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
@@ -12,8 +11,6 @@ export async function POST(request) {
     username,
     email,
     phoneNumber,
-    secretQuestion,
-    secretAnswer,
     password,
   } = body;
 
@@ -30,10 +27,6 @@ export async function POST(request) {
   const parsedPhone = parsePhoneNumberFromString(phoneNumber ?? "");
   if (!parsedPhone?.isValid()) {
     return NextResponse.json({ message: "Invalid phone number." }, { status: 400 });
-  }
-
-  if (!secretQuestion || !secretAnswer?.trim()) {
-    return NextResponse.json({ message: "Secret question and answer are required." }, { status: 400 });
   }
 
   const supabase = createAdminSupabaseClient();
@@ -55,8 +48,6 @@ export async function POST(request) {
     username: username.trim(),
     email: email.trim().toLowerCase(),
     phone_number: parsedPhone.number,
-    secret_question: secretQuestion,
-    secret_answer_hash: hashSecretAnswer(secretAnswer),
   });
 
   if (error) {

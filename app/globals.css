@@ -169,13 +169,11 @@ button:disabled {
   letter-spacing: 0.16em;
 }
 
-.brand-glyph {
-  display: grid;
+.brand-logo {
   width: 36px;
   height: 36px;
-  place-items: center;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--blue), var(--purple), var(--pink));
+  object-fit: contain;
   box-shadow: 0 0 28px rgba(34, 211, 238, 0.55);
 }
 

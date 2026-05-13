@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { ArrowRight, MessageCircle, Smile, Users, Zap } from "lucide-react";
 
@@ -31,9 +32,7 @@ export default function LandingPage() {
             animate={{ opacity: 1, x: 0 }}
             className="flex items-center gap-2 font-bold text-xl"
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-violet-600 rounded-lg flex items-center justify-center text-white font-bold">
-              N
-            </div>
+            <Image className="w-8 h-8 rounded-lg object-contain shadow-[0_0_22px_rgba(59,130,246,0.45)]" src="/nexcord_logo.png" alt="Nexcord logo" width={32} height={32} />
             <span className="text-white">Nexcord</span>
           </motion.div>
 

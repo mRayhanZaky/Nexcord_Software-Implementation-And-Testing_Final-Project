@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { motion } from "framer-motion";
 
 export function NebulaShell({ children, className = "" }) {
@@ -29,7 +30,7 @@ export function Reveal({ children, delay = 0, className = "" }) {
 export function BrandMark() {
   return (
     <span className="brand-mark">
-      <span className="brand-glyph">N</span>
+      <Image className="brand-logo" src="/nexcord_logo.png" alt="" width={40} height={40} />
       NEXCORD
     </span>
   );

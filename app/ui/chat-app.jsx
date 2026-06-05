@@ -37,6 +37,8 @@ import {
   X,
 } from "lucide-react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { VoiceChatRoom } from "./VoiceChatRoom";
+import { Phone } from "lucide-react";
 
 const filters = ["All", "Unread", "Favorites", "Groups"];
 const emojiBank = ["😀", "😂", "😍", "🥳", "😎", "😭", "😡", "👍", "👎", "🙏", "🔥", "💜", "💙", "✨", "🚀", "✅", "🎉", "💯", "🤝", "👀", "😮", "😴", "🤔", "❤️"];
@@ -1090,6 +1092,8 @@ export default function ChatApp() {
                 audioRefs={audioRefs}
                 onToggleVoice={toggleVoicePlayback}
                 setPlayingVoiceId={setPlayingVoiceId}
+                supabase={supabase}
+                profile={profile}
               />
             ) : (
               <EmptyChat key="empty-chat" />
@@ -1403,6 +1407,8 @@ function ChatConversation({
   audioRefs,
   onToggleVoice,
   setPlayingVoiceId,
+  supabase,
+  profile,
 }) {
   function groupedReactions(message) {
     return (message.message_reactions ?? []).reduce((acc, reaction) => {
@@ -1415,6 +1421,12 @@ function ChatConversation({
 
   return (
     <>
+    <VoiceChatRoom
+        supabase={supabase}
+        conversation={conversation}
+        currentUserId={currentUserId}
+        profile={profile}
+      />
       <div className="nex-message-area">
         <div className="nex-watermark"><Image src="/nexcord_logo.png" alt="" width={340} height={340} priority /><span>NEXCORD</span></div>
         <div className="nex-date-chip">Live Conversation</div>
